@@ -5430,267 +5430,674 @@ async function removeExpense(
 
 function reportsView() {
 
-  const revenue =
-    sales.reduce(
+  const content = $("#pageContent");
+
+  if (!content) return;
+
+  const today = todayISO();
+
+  const state = {
+    mode: "daily",
+    date: today
+  };
+
+  function getPeriod(mode, dateValue) {
+
+    const base = new Date(`${dateValue}T00:00:00`);
+
+    if (Number.isNaN(base.getTime())) {
+      return {
+        start: today,
+        end: today,
+        label: "Harian"
+      };
+    }
+
+    if (mode === "weekly") {
+      const day = base.getDay();
+      const diffToMonday = day === 0 ? -6 : 1 - day;
+      const startDate = new Date(base);
+      startDate.setDate(base.getDate() + diffToMonday);
+
+      const endDate = new Date(startDate);
+      endDate.setDate(startDate.getDate() + 6);
+
+      return {
+        start: toLocalISO(startDate),
+        end: toLocalISO(endDate),
+        label: "Mingguan"
+      };
+    }
+
+    if (mode === "monthly") {
+      const year = base.getFullYear();
+      const month = base.getMonth();
+      const startDate = new Date(year, month, 1);
+      const endDate = new Date(year, month + 1, 0);
+
+      return {
+        start: toLocalISO(startDate),
+        end: toLocalISO(endDate),
+        label: "Bulanan"
+      };
+    }
+
+    return {
+      start: dateValue,
+      end: dateValue,
+      label: "Harian"
+    };
+  }
+
+  function toLocalISO(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  function inPeriod(dateValue, period) {
+    const value = String(dateValue || "");
+    return value >= period.start && value <= period.end;
+  }
+
+  function buildReportData() {
+
+    const period = getPeriod(state.mode, state.date);
+
+    const periodSales = sales.filter(
+      sale => inPeriod(sale.date, period)
+    );
+
+    const periodExpenses = expenses.filter(
+      item => inPeriod(item.date, period)
+    );
+
+    const revenue = periodSales.reduce(
       (total, sale) =>
-        total +
-        normalizeNumber(
-          sale.total
-        ),
+        total + normalizeNumber(sale.total),
       0
     );
 
-
-  const cost =
-    sales.reduce(
+    const cost = periodSales.reduce(
       (total, sale) => {
+        const items = Array.isArray(sale.items)
+          ? sale.items
+          : [];
 
-        const items =
-          Array.isArray(
-            sale.items
-          )
-            ? sale.items
-            : [];
-
-
-        return (
-          total +
-          items.reduce(
-            (itemTotal, item) =>
-              itemTotal +
-              normalizeNumber(
-                item.costPrice
-              ) *
-              normalizeNumber(
-                item.qty
-              ),
-            0
-          )
+        return total + items.reduce(
+          (itemTotal, item) =>
+            itemTotal +
+            normalizeNumber(item.costPrice) *
+            normalizeNumber(item.qty),
+          0
         );
-
       },
       0
     );
 
-
-  const expense =
-    expenses.reduce(
+    const expense = periodExpenses.reduce(
       (total, item) =>
-        total +
-        normalizeNumber(
-          item.amount
-        ),
+        total + normalizeNumber(item.amount),
       0
     );
 
+    const grossProfit = revenue - cost - expense;
 
-  const grossProfit =
-    revenue -
-    cost -
-    expense;
+    const productMap = new Map();
+    const detailRows = [];
+    let totalQty = 0;
 
+    periodSales.forEach(sale => {
 
-  const content =
-    $("#pageContent");
+      const items = Array.isArray(sale.items)
+        ? sale.items
+        : [];
 
-  if (!content) {
-    return;
+      items.forEach(item => {
+
+        const qty = normalizeNumber(item.qty);
+        const price = normalizeNumber(item.price);
+        const costPrice = normalizeNumber(item.costPrice);
+        const subtotal = price * qty;
+        const hpp = costPrice * qty;
+        const profit = subtotal - hpp;
+        const productId = item.productId || item.name || "unknown";
+        const product = products.find(p => p.id === item.productId);
+        const name = item.name || product?.name || "-";
+        const unit = product?.unit || "pcs";
+
+        totalQty += qty;
+
+        if (!productMap.has(productId)) {
+          productMap.set(productId, {
+            product: name,
+            qty: 0,
+            unit,
+            revenue: 0,
+            hpp: 0,
+            profit: 0
+          });
+        }
+
+        const summary = productMap.get(productId);
+        summary.qty += qty;
+        summary.revenue += subtotal;
+        summary.hpp += hpp;
+        summary.profit += profit;
+
+        detailRows.push({
+          date: sale.date || "",
+          invoice: sale.invoice || sale.id || "-",
+          paymentMethod: sale.paymentMethod || "-",
+          product: name,
+          qty,
+          unit,
+          price,
+          subtotal,
+          costPrice,
+          hpp,
+          profit
+        });
+      });
+    });
+
+    const productRows = Array.from(productMap.values())
+      .sort((a, b) => b.qty - a.qty)
+      .map(row => ({
+        ...row,
+        marginPerUnit:
+          row.qty ? row.profit / row.qty : 0
+      }));
+
+    return {
+      period,
+      periodSales,
+      periodExpenses,
+      revenue,
+      cost,
+      expense,
+      grossProfit,
+      totalQty,
+      productRows,
+      detailRows
+    };
   }
 
+  function render() {
 
-  content.innerHTML = `
+    const report = buildReportData();
 
-    <div class="grid cards">
+    content.innerHTML = `
 
-      <div class="card">
+      <div class="toolbar" style="margin-bottom:18px;gap:10px;flex-wrap:wrap">
 
-        <div class="stat-label">
-          Penjualan
+        <div>
+          <h2 class="section-title" style="margin:0">
+            Laporan Penjualan
+          </h2>
+          <div class="muted">
+            ${escapeHTML(report.period.label)}:
+            ${dateText(report.period.start)}
+            ${report.period.start !== report.period.end
+              ? ` - ${dateText(report.period.end)}`
+              : ""}
+          </div>
         </div>
 
-        <div class="stat-value">
-          ${money(revenue)}
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+
+          <button
+            type="button"
+            class="${state.mode === "daily" ? "primary-btn" : "secondary-btn"}"
+            data-report-mode="daily"
+          >Harian</button>
+
+          <button
+            type="button"
+            class="${state.mode === "weekly" ? "primary-btn" : "secondary-btn"}"
+            data-report-mode="weekly"
+          >Mingguan</button>
+
+          <button
+            type="button"
+            class="${state.mode === "monthly" ? "primary-btn" : "secondary-btn"}"
+            data-report-mode="monthly"
+          >Bulanan</button>
+
+          <input
+            id="reportDate"
+            type="date"
+            value="${escapeHTML(state.date)}"
+            style="padding:10px;border:1px solid #dbe2ea;border-radius:8px"
+          >
+
+          <button
+            id="downloadReportExcel"
+            type="button"
+            class="primary-btn"
+          >⬇ Download Excel</button>
+
         </div>
 
       </div>
 
+      <div class="grid cards">
 
-      <div class="card">
-
-        <div class="stat-label">
-          Estimasi HPP
+        <div class="card">
+          <div class="stat-label">Penjualan</div>
+          <div class="stat-value">${money(report.revenue)}</div>
         </div>
 
-        <div class="stat-value">
-          ${money(cost)}
+        <div class="card">
+          <div class="stat-label">Jumlah Produk Terjual</div>
+          <div class="stat-value">${report.totalQty}</div>
         </div>
 
-      </div>
-
-
-      <div class="card">
-
-        <div class="stat-label">
-          Pengeluaran
+        <div class="card">
+          <div class="stat-label">Jumlah Transaksi</div>
+          <div class="stat-value">${report.periodSales.length}</div>
         </div>
 
-        <div class="stat-value">
-          ${money(expense)}
+        <div class="card">
+          <div class="stat-label">Estimasi HPP</div>
+          <div class="stat-value">${money(report.cost)}</div>
         </div>
 
-      </div>
-
-
-      <div class="card">
-
-        <div class="stat-label">
-          Laba Setelah Pengeluaran*
+        <div class="card">
+          <div class="stat-label">Pengeluaran</div>
+          <div class="stat-value">${money(report.expense)}</div>
         </div>
 
-        <div class="stat-value">
-          ${money(grossProfit)}
+        <div class="card">
+          <div class="stat-label">Laba Setelah Pengeluaran*</div>
+          <div class="stat-value">${money(report.grossProfit)}</div>
         </div>
 
       </div>
 
-    </div>
+      <div class="panel" style="margin-top:18px">
 
+        <p class="muted">
+          *HPP dihitung dari costPrice yang tersimpan pada setiap item transaksi.
+          Laba setelah pengeluaran = penjualan - HPP - pengeluaran.
+        </p>
 
-    <div
-      class="panel"
-      style="margin-top:18px"
-    >
+        <h2 class="section-title">Jumlah Produk Terjual</h2>
 
-      <p class="muted">
-
-        *Perhitungan menggunakan HPP berdasarkan
-        costPrice yang tersimpan pada item transaksi,
-        kemudian dikurangi pengeluaran.
-
-      </p>
-
-
-      <h2>
-        Ringkasan Produk
-      </h2>
-
-
-      <div class="table-wrap">
-
-        <table>
-
-          <thead>
-
-            <tr>
-
-              <th>Produk</th>
-              <th>Harga Jual</th>
-              <th>Modal</th>
-              <th>Margin/Unit</th>
-              <th>Stok</th>
-
-            </tr>
-
-          </thead>
-
-
-          <tbody>
-
-            ${
-              products.length
-
-                ? products
-                    .map(
-                      product => {
-
-                        const sellingPrice =
-                          normalizeNumber(
-                            product.sellingPrice
-                          );
-
-
-                        const costPrice =
-                          normalizeNumber(
-                            product.costPrice
-                          );
-
-
-                        return `
-
-                          <tr>
-
-                            <td>
-                              ${escapeHTML(
-                                product.name
-                              )}
-                            </td>
-
-                            <td>
-                              ${money(
-                                sellingPrice
-                              )}
-                            </td>
-
-                            <td>
-                              ${money(
-                                costPrice
-                              )}
-                            </td>
-
-                            <td>
-                              ${money(
-                                sellingPrice -
-                                costPrice
-                              )}
-                            </td>
-
-                            <td>
-
-                              ${normalizeNumber(
-                                product.stock
-                              )}
-
-                              ${escapeHTML(
-                                product.unit ||
-                                ""
-                              )}
-
-                            </td>
-
-                          </tr>
-
-                        `;
-
-                      }
-                    )
-                    .join("")
-
-                : `
-
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Produk</th>
+                <th>Jumlah Terjual</th>
+                <th>Satuan</th>
+                <th>Penjualan</th>
+                <th>HPP</th>
+                <th>Laba Produk</th>
+                <th>Margin/Unit</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${report.productRows.length
+                ? report.productRows.map(row => `
                     <tr>
-
-                      <td
-                        colspan="5"
-                        class="empty"
-                      >
-                        Belum ada produk.
-                      </td>
-
+                      <td>${escapeHTML(row.product)}</td>
+                      <td>${row.qty}</td>
+                      <td>${escapeHTML(row.unit)}</td>
+                      <td>${money(row.revenue)}</td>
+                      <td>${money(row.hpp)}</td>
+                      <td>${money(row.profit)}</td>
+                      <td>${money(row.marginPerUnit)}</td>
                     </tr>
-
-                  `
-            }
-
-          </tbody>
-
-        </table>
+                  `).join("")
+                : `
+                    <tr>
+                      <td colspan="7" class="empty">
+                        Belum ada produk terjual pada periode ini.
+                      </td>
+                    </tr>
+                  `}
+            </tbody>
+          </table>
+        </div>
 
       </div>
 
-    </div>
+      <div class="panel" style="margin-top:18px">
 
-  `;
+        <h2 class="section-title">Detail Transaksi</h2>
 
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Tanggal</th>
+                <th>Invoice</th>
+                <th>Pembayaran</th>
+                <th>Produk</th>
+                <th>Jumlah</th>
+                <th>Harga</th>
+                <th>Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${report.detailRows.length
+                ? report.detailRows.map(row => `
+                    <tr>
+                      <td>${dateText(row.date)}</td>
+                      <td>${escapeHTML(row.invoice)}</td>
+                      <td>${escapeHTML(row.paymentMethod)}</td>
+                      <td>${escapeHTML(row.product)}</td>
+                      <td>${row.qty} ${escapeHTML(row.unit)}</td>
+                      <td>${money(row.price)}</td>
+                      <td>${money(row.subtotal)}</td>
+                    </tr>
+                  `).join("")
+                : `
+                    <tr>
+                      <td colspan="7" class="empty">
+                        Belum ada transaksi pada periode ini.
+                      </td>
+                    </tr>
+                  `}
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+
+    `;
+
+    content
+      .querySelectorAll("[data-report-mode]")
+      .forEach(button => {
+        button.onclick = () => {
+          state.mode = button.dataset.reportMode;
+          render();
+        };
+      });
+
+    const dateInput = $("#reportDate");
+
+    if (dateInput) {
+      dateInput.onchange = () => {
+        state.date = dateInput.value || todayISO();
+        render();
+      };
+    }
+
+    const downloadButton = $("#downloadReportExcel");
+
+    if (downloadButton) {
+      downloadButton.onclick = () => downloadReportExcel(buildReportData());
+    }
+  }
+
+  render();
+}
+
+
+/* =========================================================
+   EXCEL REPORT
+========================================================= */
+
+let xlsxLoaderPromise = null;
+
+function loadXLSX() {
+
+  if (window.XLSX) {
+    return Promise.resolve(window.XLSX);
+  }
+
+  if (xlsxLoaderPromise) {
+    return xlsxLoaderPromise;
+  }
+
+  xlsxLoaderPromise = new Promise((resolve, reject) => {
+
+    const existing = document.querySelector(
+      'script[data-xlsx="popice"]'
+    );
+
+    if (existing) {
+      existing.addEventListener("load", () => resolve(window.XLSX));
+      existing.addEventListener("error", reject);
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.dataset.xlsx = "popice";
+    script.src = "https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js";
+    script.onload = () => {
+      if (window.XLSX) resolve(window.XLSX);
+      else reject(new Error("Library Excel tidak tersedia."));
+    };
+    script.onerror = () => reject(new Error("Gagal memuat library Excel."));
+    document.head.appendChild(script);
+  });
+
+  return xlsxLoaderPromise;
+}
+
+async function downloadReportExcel(report) {
+
+  try {
+
+    const XLSX = await loadXLSX();
+
+    const workbook = XLSX.utils.book_new();
+
+    const title = `Laporan Penjualan ${report.period.label}`;
+    const periodText =
+      report.period.start === report.period.end
+        ? dateText(report.period.start)
+        : `${dateText(report.period.start)} - ${dateText(report.period.end)}`;
+
+    /* =====================================================
+       SHEET 1 - RINGKASAN
+    ===================================================== */
+
+    const summaryRows = [
+      [title],
+      [`Periode: ${periodText}`],
+      [],
+      ["Indikator", "Nilai"],
+      ["Penjualan", report.revenue],
+      ["Jumlah Produk Terjual", report.totalQty],
+      ["Jumlah Transaksi", report.periodSales.length],
+      ["Estimasi HPP", report.cost],
+      ["Pengeluaran", report.expense],
+      ["Laba Setelah Pengeluaran", report.grossProfit]
+    ];
+
+    const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows);
+    summarySheet["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
+    summarySheet["!cols"] = [{ wch: 30 }, { wch: 22 }];
+    summarySheet["!freeze"] = { xSplit: 0, ySplit: 4 };
+
+    applyExcelStyle(XLSX, summarySheet, "A1:B10", {
+      titleRows: [0],
+      headerRows: [3],
+      currencyRows: [4, 7, 8, 9]
+    });
+
+    XLSX.utils.book_append_sheet(workbook, summarySheet, "Ringkasan");
+
+    /* =====================================================
+       SHEET 2 - PRODUK TERJUAL
+    ===================================================== */
+
+    const productRows = [
+      ["Produk", "Jumlah Terjual", "Satuan", "Penjualan", "HPP", "Laba Produk", "Margin/Unit"],
+      ...report.productRows.map(row => [
+        row.product,
+        row.qty,
+        row.unit,
+        row.revenue,
+        row.hpp,
+        row.profit,
+        row.marginPerUnit
+      ])
+    ];
+
+    const productSheet = XLSX.utils.aoa_to_sheet(productRows);
+    productSheet["!cols"] = [
+      { wch: 28 }, { wch: 16 }, { wch: 12 },
+      { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 18 }
+    ];
+    productSheet["!autofilter"] = { ref: `A1:G${Math.max(1, productRows.length)}` };
+    productSheet["!freeze"] = { xSplit: 0, ySplit: 1 };
+
+    applyExcelStyle(XLSX, productSheet, `A1:G${Math.max(1, productRows.length)}`, {
+      headerRows: [0],
+      currencyColumns: [3, 4, 5, 6],
+      currencyStartRow: 1
+    });
+
+    XLSX.utils.book_append_sheet(workbook, productSheet, "Produk Terjual");
+
+    /* =====================================================
+       SHEET 3 - DETAIL TRANSAKSI
+    ===================================================== */
+
+    const detailRows = [
+      ["Tanggal", "Invoice", "Pembayaran", "Produk", "Jumlah", "Satuan", "Harga", "Subtotal", "Modal/Unit", "HPP", "Laba"],
+      ...report.detailRows.map(row => [
+        row.date,
+        row.invoice,
+        row.paymentMethod,
+        row.product,
+        row.qty,
+        row.unit,
+        row.price,
+        row.subtotal,
+        row.costPrice,
+        row.hpp,
+        row.profit
+      ])
+    ];
+
+    const detailSheet = XLSX.utils.aoa_to_sheet(detailRows);
+    detailSheet["!cols"] = [
+      { wch: 14 }, { wch: 22 }, { wch: 16 }, { wch: 28 },
+      { wch: 12 }, { wch: 10 }, { wch: 16 }, { wch: 18 },
+      { wch: 16 }, { wch: 16 }, { wch: 16 }
+    ];
+    detailSheet["!autofilter"] = { ref: `A1:K${Math.max(1, detailRows.length)}` };
+    detailSheet["!freeze"] = { xSplit: 0, ySplit: 1 };
+
+    applyExcelStyle(XLSX, detailSheet, `A1:K${Math.max(1, detailRows.length)}`, {
+      headerRows: [0],
+      currencyColumns: [6, 7, 8, 9, 10],
+      currencyStartRow: 1
+    });
+
+    for (let row = 1; row < detailRows.length; row++) {
+      const cell = detailSheet[`A${row + 1}`];
+      if (cell) cell.z = "dd mmm yyyy";
+    }
+
+    XLSX.utils.book_append_sheet(workbook, detailSheet, "Detail Transaksi");
+
+    /* =====================================================
+       SHEET 4 - PENGELUARAN
+    ===================================================== */
+
+    const expenseRows = [
+      ["Tanggal", "Kategori", "Keterangan", "Jumlah"],
+      ...report.periodExpenses.map(item => [
+        item.date || "",
+        item.category || "-",
+        item.description || item.note || "-",
+        normalizeNumber(item.amount)
+      ])
+    ];
+
+    const expenseSheet = XLSX.utils.aoa_to_sheet(expenseRows);
+    expenseSheet["!cols"] = [
+      { wch: 14 }, { wch: 22 }, { wch: 40 }, { wch: 18 }
+    ];
+    expenseSheet["!autofilter"] = { ref: `A1:D${Math.max(1, expenseRows.length)}` };
+    expenseSheet["!freeze"] = { xSplit: 0, ySplit: 1 };
+
+    applyExcelStyle(XLSX, expenseSheet, `A1:D${Math.max(1, expenseRows.length)}`, {
+      headerRows: [0],
+      currencyColumns: [3],
+      currencyStartRow: 1
+    });
+
+    XLSX.utils.book_append_sheet(workbook, expenseSheet, "Pengeluaran");
+
+    const fileDate = report.period.start === report.period.end
+      ? report.period.start
+      : `${report.period.start}_${report.period.end}`;
+
+    XLSX.writeFile(
+      workbook,
+      `Laporan_Penjualan_${report.period.label}_${fileDate}.xlsx`
+    );
+
+    toast("File Excel berhasil dibuat.");
+
+  } catch (error) {
+
+    console.error("Excel Export Error:", error);
+    toast("Gagal membuat file Excel. Periksa koneksi internet lalu coba lagi.");
+
+  }
+}
+
+function applyExcelStyle(XLSX, sheet, range, options = {}) {
+
+  const headerRows = options.headerRows || [];
+  const titleRows = options.titleRows || [];
+  const currencyRows = options.currencyRows || [];
+  const currencyColumns = options.currencyColumns || [];
+  const currencyStartRow = options.currencyStartRow ?? 1;
+
+  const ref = XLSX.utils.decode_range(range);
+
+  for (let row = ref.s.r; row <= ref.e.r; row++) {
+    for (let col = ref.s.c; col <= ref.e.c; col++) {
+
+      const address = XLSX.utils.encode_cell({ r: row, c: col });
+      const cell = sheet[address];
+
+      if (!cell) continue;
+
+      cell.alignment = {
+        vertical: "center",
+        horizontal: col === 0 ? "left" : "left",
+        wrapText: true
+      };
+
+      if (titleRows.includes(row)) {
+        cell.font = { bold: true, sz: 16 };
+      }
+
+      if (headerRows.includes(row)) {
+        cell.font = { bold: true, color: { rgb: "FFFFFF" } };
+        cell.fill = { fgColor: { rgb: "17365D" } };
+        cell.alignment = {
+          vertical: "center",
+          horizontal: "center",
+          wrapText: true
+        };
+      }
+
+      if (currencyRows.includes(row)) {
+        cell.z = '"Rp" #,##0';
+      }
+
+      if (
+        currencyColumns.includes(col) &&
+        row >= currencyStartRow
+      ) {
+        cell.z = '"Rp" #,##0';
+      }
+    }
+  }
 }
 
 
