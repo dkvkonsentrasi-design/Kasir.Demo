@@ -684,7 +684,7 @@ const latestSales =
 
 
         <h2 class="section-title">
-          Penjualan 7 Transaksi Terakhir
+          Semua Transaksi Terakhir
         </h2>
 
 
