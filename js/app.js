@@ -2101,6 +2101,13 @@ function stockModal() {
    PURCHASES
 ========================================================= */
 
+let purchases = [];
+
+
+/* =========================================================
+   PURCHASES VIEW
+========================================================= */
+
 function purchasesView() {
 
   $("#pageContent").innerHTML = `
@@ -2109,9 +2116,17 @@ function purchasesView() {
 
       <div class="toolbar">
 
-        <h2 class="section-title">
-          Pembelian / Supplier
-        </h2>
+        <div>
+
+          <h2 class="section-title">
+            Pembelian / Supplier
+          </h2>
+
+          <div class="muted">
+            Kelola pembelian barang dari supplier
+          </div>
+
+        </div>
 
 
         <button
@@ -2165,7 +2180,20 @@ function purchasesView() {
           </thead>
 
 
-          <tbody id="purchaseRows"></tbody>
+          <tbody id="purchaseRows">
+
+            <tr>
+
+              <td
+                colspan="7"
+                class="empty"
+              >
+                Memuat data pembelian...
+              </td>
+
+            </tr>
+
+          </tbody>
 
         </table>
 
@@ -2176,11 +2204,11 @@ function purchasesView() {
   `;
 
 
-  loadPurchases();
-
-
   $("#purchaseBtn").onclick =
     () => purchaseModal();
+
+
+  loadPurchases();
 
 }
 
@@ -2202,21 +2230,21 @@ async function loadPurchases() {
       );
 
 
-    const list =
-      snap.docs.map(
-        x => ({
-          id: x.id,
-          ...x.data()
-        })
-      );
-
-
-    list.sort(
-      (a, b) =>
-        String(b.date || "").localeCompare(
-          String(a.date || "")
+    purchases =
+      snap.docs
+        .map(
+          x => ({
+            id: x.id,
+            ...x.data()
+          })
         )
-    );
+        .sort(
+          (a, b) =>
+            String(b.date || "")
+              .localeCompare(
+                String(a.date || "")
+              )
+        );
 
 
     const rows =
@@ -2230,16 +2258,22 @@ async function loadPurchases() {
 
     rows.innerHTML =
 
-      list.length
+      purchases.length
 
-        ? list
+        ? purchases
             .map(
               p => `
 
                 <tr>
 
                   <td>
-                    ${p.supplierName || "-"}
+
+                    <b>
+                      ${escapeHTML(
+                        p.supplierName || "-"
+                      )}
+                    </b>
+
                   </td>
 
 
@@ -2249,12 +2283,26 @@ async function loadPurchases() {
 
 
                   <td>
-                    ${p.productName || "-"}
+
+                    ${escapeHTML(
+                      p.productName || "-"
+                    )}
+
                   </td>
 
 
                   <td>
-                    ${p.qty || 0}
+
+                    <b>
+                      ${Number(p.qty || 0)}
+                    </b>
+
+                    ${escapeHTML(
+                      getProductUnit(
+                        p.productId
+                      )
+                    )}
+
                   </td>
 
 
@@ -2264,7 +2312,9 @@ async function loadPurchases() {
 
 
                   <td>
-                    ${money(p.total)}
+                    <b>
+                      ${money(p.total)}
+                    </b>
                   </td>
 
 
@@ -2301,7 +2351,9 @@ async function loadPurchases() {
               colspan="7"
               class="empty"
             >
+
               Belum ada pembelian.
+
             </td>
 
           </tr>
@@ -2316,11 +2368,60 @@ async function loadPurchases() {
       error
     );
 
+
     toast(
       "Gagal memuat data pembelian."
     );
 
   }
+
+}
+
+
+/* =========================================================
+   HELPER PRODUCT UNIT
+========================================================= */
+
+function getProductUnit(productId) {
+
+  const p =
+    products.find(
+      x => x.id === productId
+    );
+
+
+  return p?.unit || "pcs";
+
+}
+
+
+/* =========================================================
+   ESCAPE HTML
+========================================================= */
+
+function escapeHTML(value) {
+
+  return String(value ?? "")
+    .replace(
+      /&/g,
+      "&amp;"
+    )
+    .replace(
+      /</g,
+      "&lt;"
+    )
+    .replace(
+      />/g,
+      "&gt;"
+    )
+    .replace(
+      /"/g,
+      "&quot;"
+    )
+    .replace(
+      /'/g,
+      "&#039;"
+    );
 
 }
 
@@ -2332,61 +2433,24 @@ async function loadPurchases() {
 window.editPurchase =
   async id => {
 
-    try {
-
-      const snap =
-        await getDocs(
-          collection(
-            db,
-            "purchases"
-          )
-        );
-
-
-      const purchaseDoc =
-        snap.docs.find(
-          x => x.id === id
-        );
-
-
-      if (!purchaseDoc) {
-
-        toast(
-          "Data pembelian tidak ditemukan."
-        );
-
-        return;
-
-      }
-
-
-      const purchase = {
-
-        id:
-          purchaseDoc.id,
-
-        ...purchaseDoc.data()
-
-      };
-
-
-      purchaseModal(
-        purchase
+    const purchase =
+      purchases.find(
+        p => p.id === id
       );
 
 
-    } catch (error) {
+    if (!purchase) {
 
-      console.error(
-        "Edit Purchase Error:",
-        error
-      );
-
-      toast(
-        "Gagal membuka pembelian."
+      return toast(
+        "Data pembelian tidak ditemukan."
       );
 
     }
+
+
+    purchaseModal(
+      purchase
+    );
 
   };
 
@@ -2398,14 +2462,43 @@ window.editPurchase =
 window.removePurchase =
   async id => {
 
+    const purchase =
+      purchases.find(
+        p => p.id === id
+      );
+
+
+    if (!purchase) {
+
+      return toast(
+        "Data pembelian tidak ditemukan."
+      );
+
+    }
+
+
     const confirmDelete =
       confirm(
 
-        "⚠️ Hapus pembelian ini?\n\n" +
+        "Hapus pembelian ini?\n\n" +
 
-        "Stok produk yang berasal dari pembelian ini juga akan dikurangi kembali.\n\n" +
+        `Supplier: ${
+          purchase.supplierName || "-"
+        }\n` +
 
-        "Data yang sudah dihapus tidak dapat dikembalikan."
+        `Produk: ${
+          purchase.productName || "-"
+        }\n` +
+
+        `Jumlah: ${
+          purchase.qty || 0
+        }\n` +
+
+        `Total: ${
+          money(purchase.total)
+        }\n\n` +
+
+        "Stok produk juga akan dikurangi kembali."
 
       );
 
@@ -2417,133 +2510,60 @@ window.removePurchase =
 
     try {
 
-      const snap =
-        await getDocs(
-          collection(
-            db,
-            "purchases"
-          )
-        );
-
-
-      const purchaseDoc =
-        snap.docs.find(
-          x => x.id === id
-        );
-
-
-      if (!purchaseDoc) {
-
-        toast(
-          "Pembelian tidak ditemukan."
-        );
-
-        return;
-
-      }
-
-
-      const purchase = {
-
-        id:
-          purchaseDoc.id,
-
-        ...purchaseDoc.data()
-
-      };
-
-
       const product =
         products.find(
           p =>
-            p.id === purchase.productId
+            p.id ===
+            purchase.productId
         );
 
 
-      if (!product) {
+      /* =====================================================
+         KURANGI STOK KEMBALI
+      ===================================================== */
 
-        await deleteDoc(
-          doc(
-            db,
-            "purchases",
-            id
-          )
-        );
+      if (product) {
 
-
-        await loadAll();
-
-        purchasesView();
-
-        toast(
-          "Pembelian dihapus. Produk tidak ditemukan sehingga stok tidak diubah."
-        );
-
-        return;
-
-      }
-
-
-      const oldQty =
-        Number(
-          purchase.qty || 0
-        );
-
-
-      const currentStock =
-        Number(
-          product.stock || 0
-        );
-
-
-      const newStock =
-        currentStock - oldQty;
-
-
-      if (newStock < 0) {
-
-        const lanjut =
-          confirm(
-
-            "⚠️ Stok saat ini lebih kecil dari jumlah pembelian.\n\n" +
-
-            `Stok sekarang: ${currentStock}\n` +
-            `Jumlah pembelian: ${oldQty}\n\n` +
-
-            "Jika dihapus, stok akan menjadi 0.\n\n" +
-
-            "Tetap hapus?"
-
+        const currentStock =
+          Number(
+            product.stock || 0
           );
 
 
-        if (!lanjut) {
-          return;
-        }
+        const purchaseQty =
+          Number(
+            purchase.qty || 0
+          );
+
+
+        const newStock =
+          currentStock -
+          purchaseQty;
+
+
+        await updateDoc(
+          doc(
+            db,
+            "products",
+            product.id
+          ),
+          {
+
+            stock:
+              newStock,
+
+            updatedAt:
+              serverTimestamp()
+
+          }
+        );
 
       }
 
 
-      await updateDoc(
-        doc(
-          db,
-          "products",
-          product.id
-        ),
-        {
-
-          stock:
-            Math.max(
-              0,
-              newStock
-            ),
-
-          updatedAt:
-            serverTimestamp()
-
-        }
-      );
-
+      /* =====================================================
+         HAPUS PURCHASE
+      ===================================================== */
 
       await deleteDoc(
         doc(
@@ -2554,45 +2574,42 @@ window.removePurchase =
       );
 
 
-      await addDoc(
-        collection(
-          db,
-          "stock_movements"
-        ),
-        {
+      /* =====================================================
+         HAPUS STOCK MOVEMENT YANG TERKAIT
+      ===================================================== */
 
-          productId:
-            product.id,
+      if (purchase.stockMovementId) {
 
-          purchaseId:
-            id,
+        try {
 
-          type:
-            "PURCHASE_DELETE",
+          await deleteDoc(
+            doc(
+              db,
+              "stock_movements",
+              purchase.stockMovementId
+            )
+          );
 
-          qty:
-            -oldQty,
+        } catch (movementError) {
 
-          reference:
-            "Hapus pembelian",
-
-          date:
-            todayISO(),
-
-          createdAt:
-            serverTimestamp()
+          console.warn(
+            "Stock movement lama tidak ditemukan:",
+            movementError
+          );
 
         }
-      );
+
+      }
 
 
       await loadAll();
+
 
       purchasesView();
 
 
       toast(
-        "Pembelian berhasil dihapus dan stok dikembalikan."
+        "Pembelian berhasil dihapus."
       );
 
 
@@ -2602,6 +2619,7 @@ window.removePurchase =
         "Delete Purchase Error:",
         error
       );
+
 
       toast(
         "Gagal menghapus pembelian."
@@ -2614,13 +2632,20 @@ window.removePurchase =
 
 /* =========================================================
    PURCHASE MODAL
-   TAMBAH + EDIT
 ========================================================= */
 
-function purchaseModal(p = {}) {
+function purchaseModal(
+  purchase = null
+) {
 
   const isEdit =
-    Boolean(p.id);
+    !!purchase?.id;
+
+
+  const selectedProductId =
+    purchase?.productId ||
+    products[0]?.id ||
+    "";
 
 
   $("#modalRoot").innerHTML = `
@@ -2632,8 +2657,13 @@ function purchaseModal(p = {}) {
         <div class="modal-head">
 
           <h2>
-            ${isEdit ? "Edit" : "Catat"}
-            Pembelian
+
+            ${
+              isEdit
+                ? "Edit Pembelian"
+                : "Catat Pembelian"
+            }
+
           </h2>
 
 
@@ -2652,6 +2682,8 @@ function purchaseModal(p = {}) {
           <div class="form-grid">
 
 
+            <!-- SUPPLIER -->
+
             <div class="form-group">
 
               <label>
@@ -2661,12 +2693,16 @@ function purchaseModal(p = {}) {
               <input
                 name="supplierName"
                 required
-                value="${p.supplierName || ""}"
                 placeholder="Nama supplier"
+                value="${escapeHTML(
+                  purchase?.supplierName || ""
+                )}"
               >
 
             </div>
 
+
+            <!-- TANGGAL -->
 
             <div class="form-group">
 
@@ -2677,12 +2713,17 @@ function purchaseModal(p = {}) {
               <input
                 name="date"
                 type="date"
-                value="${p.date || todayISO()}"
+                value="${
+                  purchase?.date ||
+                  todayISO()
+                }"
                 required
               >
 
             </div>
 
+
+            <!-- PRODUK -->
 
             <div class="form-group">
 
@@ -2697,30 +2738,47 @@ function purchaseModal(p = {}) {
               >
 
                 ${
-                  products
-                    .map(
-                      product => `
+                  products.length
 
-                        <option
-                          value="${product.id}"
-                          ${
-                            p.productId === product.id
-                              ? "selected"
-                              : ""
-                          }
-                        >
-                          ${product.name}
+                    ? products
+                        .map(
+                          p => `
+
+                            <option
+                              value="${p.id}"
+                              ${
+                                p.id ===
+                                selectedProductId
+                                  ? "selected"
+                                  : ""
+                              }
+                            >
+
+                              ${escapeHTML(
+                                p.name
+                              )}
+
+                            </option>
+
+                          `
+                        )
+                        .join("")
+
+                    : `
+
+                        <option value="">
+                          Belum ada produk
                         </option>
 
                       `
-                    )
-                    .join("")
                 }
 
               </select>
 
             </div>
 
+
+            <!-- JUMLAH -->
 
             <div class="form-group">
 
@@ -2733,11 +2791,16 @@ function purchaseModal(p = {}) {
                 type="number"
                 min="1"
                 required
-                value="${p.qty || ""}"
+                value="${
+                  purchase?.qty ||
+                  ""
+                }"
               >
 
             </div>
 
+
+            <!-- HARGA MODAL -->
 
             <div class="form-group">
 
@@ -2750,7 +2813,10 @@ function purchaseModal(p = {}) {
                 type="number"
                 min="0"
                 required
-                value="${p.cost || ""}"
+                value="${
+                  purchase?.cost ??
+                  ""
+                }"
               >
 
             </div>
@@ -2759,27 +2825,29 @@ function purchaseModal(p = {}) {
           </div>
 
 
-          ${
-            isEdit
-              ? `
+          <!-- TOTAL -->
 
-                <div
-                  class="muted"
-                  style="
-                    margin-top:10px;
-                    padding:10px;
-                    background:#f6f7fb;
-                    border-radius:8px
-                  "
-                >
-                  ℹ️ Saat pembelian diedit,
-                  stok akan otomatis disesuaikan
-                  dengan jumlah pembelian baru.
-                </div>
+          <div
+            class="total-box"
+            style="margin-top:18px"
+          >
 
-              `
-              : ""
-          }
+            <span>
+              Total Pembelian
+            </span>
+
+            <strong id="purchaseTotal">
+              ${money(
+                Number(
+                  purchase?.qty || 0
+                ) *
+                Number(
+                  purchase?.cost || 0
+                )
+              )}
+            </strong>
+
+          </div>
 
 
           <div class="modal-actions">
@@ -2796,11 +2864,13 @@ function purchaseModal(p = {}) {
             <button
               class="primary-btn"
             >
+
               ${
                 isEdit
                   ? "Simpan Perubahan"
-                  : "Simpan"
+                  : "Simpan Pembelian"
               }
+
             </button>
 
           </div>
@@ -2814,143 +2884,333 @@ function purchaseModal(p = {}) {
   `;
 
 
-  $("#purchaseForm").onsubmit =
+  const form =
+    $("#purchaseForm");
+
+
+  const qtyInput =
+    form.querySelector(
+      '[name="qty"]'
+    );
+
+
+  const costInput =
+    form.querySelector(
+      '[name="cost"]'
+    );
+
+
+  const totalEl =
+    $("#purchaseTotal");
+
+
+  /* =======================================================
+     UPDATE TOTAL OTOMATIS
+  ======================================================= */
+
+  function updatePurchaseTotal() {
+
+    const qty =
+      Number(
+        qtyInput.value || 0
+      );
+
+
+    const cost =
+      Number(
+        costInput.value || 0
+      );
+
+
+    totalEl.textContent =
+      money(
+        qty * cost
+      );
+
+  }
+
+
+  qtyInput.oninput =
+    updatePurchaseTotal;
+
+
+  costInput.oninput =
+    updatePurchaseTotal;
+
+
+  /* =======================================================
+     SUBMIT
+  ======================================================= */
+
+  form.onsubmit =
     async e => {
 
       e.preventDefault();
 
 
+      const f =
+        new FormData(
+          e.target
+        );
+
+
+      const supplierName =
+        String(
+          f.get("supplierName") || ""
+        ).trim();
+
+
+      const date =
+        f.get("date");
+
+
+      const productId =
+        f.get("productId");
+
+
+      const qty =
+        Number(
+          f.get("qty")
+        );
+
+
+      const cost =
+        Number(
+          f.get("cost")
+        );
+
+
+      if (!supplierName) {
+
+        return toast(
+          "Nama supplier wajib diisi."
+        );
+
+      }
+
+
+      if (!productId) {
+
+        return toast(
+          "Pilih produk terlebih dahulu."
+        );
+
+      }
+
+
+      if (qty <= 0) {
+
+        return toast(
+          "Jumlah pembelian harus lebih dari 0."
+        );
+
+      }
+
+
+      if (cost < 0) {
+
+        return toast(
+          "Harga modal tidak boleh negatif."
+        );
+
+      }
+
+
+      const newProduct =
+        products.find(
+          p =>
+            p.id === productId
+        );
+
+
+      if (!newProduct) {
+
+        return toast(
+          "Produk tidak ditemukan."
+        );
+
+      }
+
+
+      const total =
+        qty * cost;
+
+
       try {
 
-        const f =
-          new FormData(e.target);
-
-
-        const supplierName =
-          f.get("supplierName");
-
-
-        const date =
-          f.get("date");
-
-
-        const productId =
-          f.get("productId");
-
-
-        const qty =
-          Number(
-            f.get("qty")
-          );
-
-
-        const cost =
-          Number(
-            f.get("cost")
-          );
-
-
-        if (
-          !supplierName ||
-          !date ||
-          !productId ||
-          qty <= 0 ||
-          cost < 0
-        ) {
-
-          toast(
-            "Data pembelian belum lengkap."
-          );
-
-          return;
-
-        }
-
-
-        const newProduct =
-          products.find(
-            x =>
-              x.id === productId
-          );
-
-
-        if (!newProduct) {
-
-          toast(
-            "Produk tidak ditemukan."
-          );
-
-          return;
-
-        }
-
-
-        const total =
-          qty * cost;
-
-
         /* =================================================
-           TAMBAH PEMBELIAN
+           MODE EDIT
         ================================================= */
 
-        if (!isEdit) {
+        if (isEdit) {
 
-          const purchaseRef =
-            await addDoc(
-              collection(
+          const oldProduct =
+            products.find(
+              p =>
+                p.id ===
+                purchase.productId
+            );
+
+
+          const oldQty =
+            Number(
+              purchase.qty || 0
+            );
+
+
+          /* ===============================================
+             JIKA PRODUK LAMA SAMA DENGAN PRODUK BARU
+          =============================================== */
+
+          if (
+            oldProduct &&
+            oldProduct.id ===
+            newProduct.id
+          ) {
+
+            const currentStock =
+              Number(
+                oldProduct.stock || 0
+              );
+
+
+            /*
+             * Stok sekarang masih termasuk
+             * pembelian lama.
+             *
+             * Jadi:
+             * stok baru =
+             * stok sekarang - qty lama + qty baru
+             */
+
+            const newStock =
+              currentStock -
+              oldQty +
+              qty;
+
+
+            await updateDoc(
+              doc(
                 db,
-                "purchases"
+                "products",
+                newProduct.id
               ),
               {
 
-                supplierName,
+                stock:
+                  newStock,
 
-                date,
+                costPrice:
+                  cost,
 
-                productId,
-
-                productName:
-                  newProduct.name,
-
-                qty,
-
-                cost,
-
-                total,
-
-                /*
-                 * Menyimpan harga modal
-                 * sebelum pembelian.
-                 * Berguna jika nanti
-                 * pembelian dihapus.
-                 */
-                previousCostPrice:
-                  Number(
-                    newProduct.costPrice || 0
-                  ),
-
-                createdAt:
+                updatedAt:
                   serverTimestamp()
 
               }
             );
 
+          }
+
+
+          /* ===============================================
+             JIKA PRODUK BERUBAH
+          =============================================== */
+
+          else {
+
+            /* ---------------------------------------------
+               KEMBALIKAN STOK PRODUK LAMA
+            --------------------------------------------- */
+
+            if (oldProduct) {
+
+              const oldStock =
+                Number(
+                  oldProduct.stock || 0
+                );
+
+
+              await updateDoc(
+                doc(
+                  db,
+                  "products",
+                  oldProduct.id
+                ),
+                {
+
+                  stock:
+                    oldStock -
+                    oldQty,
+
+                  updatedAt:
+                    serverTimestamp()
+
+                }
+              );
+
+            }
+
+
+            /* ---------------------------------------------
+               TAMBAHKAN STOK KE PRODUK BARU
+            --------------------------------------------- */
+
+            const newStock =
+              Number(
+                newProduct.stock || 0
+              ) +
+              qty;
+
+
+            await updateDoc(
+              doc(
+                db,
+                "products",
+                newProduct.id
+              ),
+              {
+
+                stock:
+                  newStock,
+
+                costPrice:
+                  cost,
+
+                updatedAt:
+                  serverTimestamp()
+
+              }
+            );
+
+          }
+
+
+          /* ===============================================
+             UPDATE DATA PEMBELIAN
+          =============================================== */
 
           await updateDoc(
             doc(
               db,
-              "products",
-              productId
+              "purchases",
+              purchase.id
             ),
             {
 
-              stock:
-                Number(
-                  newProduct.stock || 0
-                ) + qty,
+              supplierName,
 
-              costPrice:
-                cost,
+              date,
+
+              productId,
+
+              productName:
+                newProduct.name,
+
+              qty,
+
+              cost,
+
+              total,
 
               updatedAt:
                 serverTimestamp()
@@ -2959,6 +3219,91 @@ function purchaseModal(p = {}) {
           );
 
 
+          closeModal();
+
+
+          await loadAll();
+
+
+          purchasesView();
+
+
+          toast(
+            "Pembelian berhasil diperbarui."
+          );
+
+
+          return;
+
+        }
+
+
+        /* =================================================
+           MODE TAMBAH
+        ================================================= */
+
+        const purchaseRef =
+          await addDoc(
+            collection(
+              db,
+              "purchases"
+            ),
+            {
+
+              supplierName,
+
+              date,
+
+              productId,
+
+              productName:
+                newProduct.name,
+
+              qty,
+
+              cost,
+
+              total,
+
+              createdAt:
+                serverTimestamp()
+
+            }
+          );
+
+
+        /* =================================================
+           TAMBAHKAN STOK
+        ================================================= */
+
+        await updateDoc(
+          doc(
+            db,
+            "products",
+            productId
+          ),
+          {
+
+            stock:
+              Number(
+                newProduct.stock || 0
+              ) + qty,
+
+            costPrice:
+              cost,
+
+            updatedAt:
+              serverTimestamp()
+
+          }
+        );
+
+
+        /* =================================================
+           CATAT STOCK MOVEMENT
+        ================================================= */
+
+        const movementRef =
           await addDoc(
             collection(
               db,
@@ -2968,16 +3313,17 @@ function purchaseModal(p = {}) {
 
               productId,
 
-              purchaseId:
-                purchaseRef.id,
-
               type:
                 "PURCHASE",
 
               qty,
 
               reference:
-                "Pembelian",
+                "Pembelian " +
+                purchaseRef.id,
+
+              purchaseId:
+                purchaseRef.id,
 
               date,
 
@@ -2986,347 +3332,22 @@ function purchaseModal(p = {}) {
 
             }
           );
-
-
-          closeModal();
-
-          await loadAll();
-
-          purchasesView();
-
-
-          toast(
-            "Pembelian tersimpan"
-          );
-
-
-          return;
-
-        }
 
 
         /* =================================================
-           EDIT PEMBELIAN
+           SIMPAN ID MOVEMENT KE PURCHASE
         ================================================= */
-
-        const oldProduct =
-          products.find(
-            x =>
-              x.id === p.productId
-          );
-
-
-        const oldQty =
-          Number(
-            p.qty || 0
-          );
-
-
-        const oldCost =
-          Number(
-            p.cost || 0
-          );
-
-
-        if (!oldProduct) {
-
-          toast(
-            "Produk lama dari pembelian tidak ditemukan."
-          );
-
-          return;
-
-        }
-
-
-        /* ================================================
-           KONFIRMASI EDIT
-        ================================================ */
-
-        const confirmEdit =
-          confirm(
-
-            "Simpan perubahan pembelian?\n\n" +
-
-            `Produk lama: ${oldProduct.name}\n` +
-            `Jumlah lama: ${oldQty}\n\n` +
-
-            `Produk baru: ${newProduct.name}\n` +
-            `Jumlah baru: ${qty}\n\n` +
-
-            "Stok akan otomatis disesuaikan."
-
-          );
-
-
-        if (!confirmEdit) {
-          return;
-        }
-
-
-        /* ================================================
-           PRODUK SAMA
-        ================================================ */
-
-        if (
-          oldProduct.id ===
-          newProduct.id
-        ) {
-
-          const stockNow =
-            Number(
-              oldProduct.stock || 0
-            );
-
-
-          const stockAfter =
-            stockNow -
-            oldQty +
-            qty;
-
-
-          if (stockAfter < 0) {
-
-            toast(
-              "Stok tidak cukup untuk melakukan perubahan."
-            );
-
-            return;
-
-          }
-
-
-          await updateDoc(
-            doc(
-              db,
-              "products",
-              oldProduct.id
-            ),
-            {
-
-              stock:
-                stockAfter,
-
-              costPrice:
-                cost,
-
-              updatedAt:
-                serverTimestamp()
-
-            }
-          );
-
-
-          await addDoc(
-            collection(
-              db,
-              "stock_movements"
-            ),
-            {
-
-              productId:
-                oldProduct.id,
-
-              purchaseId:
-                p.id,
-
-              type:
-                "PURCHASE_EDIT",
-
-              qty:
-                qty - oldQty,
-
-              reference:
-                "Edit pembelian",
-
-              date,
-
-              createdAt:
-                serverTimestamp()
-
-            }
-          );
-
-        }
-
-
-        /* ================================================
-           PRODUK BERUBAH
-        ================================================ */
-
-        else {
-
-          const oldStock =
-            Number(
-              oldProduct.stock || 0
-            );
-
-
-          const newStock =
-            Number(
-              newProduct.stock || 0
-            );
-
-
-          const oldStockAfter =
-            oldStock -
-            oldQty;
-
-
-          if (
-            oldStockAfter < 0
-          ) {
-
-            toast(
-
-              `Stok ${oldProduct.name} tidak cukup untuk memindahkan pembelian.`
-
-            );
-
-            return;
-
-          }
-
-
-          await updateDoc(
-            doc(
-              db,
-              "products",
-              oldProduct.id
-            ),
-            {
-
-              stock:
-                oldStockAfter,
-
-              updatedAt:
-                serverTimestamp()
-
-            }
-          );
-
-
-          await updateDoc(
-            doc(
-              db,
-              "products",
-              newProduct.id
-            ),
-            {
-
-              stock:
-                newStock + qty,
-
-              costPrice:
-                cost,
-
-              updatedAt:
-                serverTimestamp()
-
-            }
-          );
-
-
-          /* =============================================
-             RIWAYAT STOK PRODUK LAMA
-          ============================================= */
-
-          await addDoc(
-            collection(
-              db,
-              "stock_movements"
-            ),
-            {
-
-              productId:
-                oldProduct.id,
-
-              purchaseId:
-                p.id,
-
-              type:
-                "PURCHASE_EDIT_REMOVE",
-
-              qty:
-                -oldQty,
-
-              reference:
-                "Edit pembelian - produk lama",
-
-              date,
-
-              createdAt:
-                serverTimestamp()
-
-            }
-          );
-
-
-          /* =============================================
-             RIWAYAT STOK PRODUK BARU
-          ============================================= */
-
-          await addDoc(
-            collection(
-              db,
-              "stock_movements"
-            ),
-            {
-
-              productId:
-                newProduct.id,
-
-              purchaseId:
-                p.id,
-
-              type:
-                "PURCHASE_EDIT_ADD",
-
-              qty,
-
-              reference:
-                "Edit pembelian - produk baru",
-
-              date,
-
-              createdAt:
-                serverTimestamp()
-
-            }
-          );
-
-        }
-
-
-        /* ================================================
-           UPDATE DATA PEMBELIAN
-        ================================================ */
 
         await updateDoc(
           doc(
             db,
             "purchases",
-            p.id
+            purchaseRef.id
           ),
           {
 
-            supplierName,
-
-            date,
-
-            productId,
-
-            productName:
-              newProduct.name,
-
-            qty,
-
-            cost,
-
-            total,
-
-            updatedAt:
-              serverTimestamp()
+            stockMovementId:
+              movementRef.id
 
           }
         );
@@ -3334,13 +3355,15 @@ function purchaseModal(p = {}) {
 
         closeModal();
 
+
         await loadAll();
+
 
         purchasesView();
 
 
         toast(
-          "Pembelian berhasil diperbarui."
+          "Pembelian berhasil disimpan."
         );
 
 
@@ -3361,7 +3384,6 @@ function purchaseModal(p = {}) {
     };
 
 }
-
 
 /* =========================================================
    FINANCE
