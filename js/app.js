@@ -1903,70 +1903,20 @@ function posView() {
         <div id="cartRows"></div>
 
 
-       <!-- =====================================================
-     DATA PEMBELI
-===================================================== -->
+        <div class="total-box">
 
-<div
-  class="form-group"
-  style="margin-bottom:15px"
->
+          <span>Total</span>
 
-  <label>
-    Nama Pembeli
-  </label>
+          <span id="cartTotal">
+            ${money(0)}
+          </span>
 
-  <input
-    id="customerName"
-    type="text"
-    placeholder="Masukkan nama pembeli"
-    autocomplete="off"
-  >
-
-</div>
+        </div>
 
 
-<div
-  class="form-group"
-  style="margin-bottom:15px"
->
-
-  <label>
-    Keterangan
-  </label>
-
-  <textarea
-    id="saleNote"
-    rows="3"
-    placeholder="Keterangan pesanan (opsional)"
-    style="
-      width:100%;
-      border:1px solid #d8dee8;
-      border-radius:8px;
-      padding:10px 12px;
-      resize:vertical;
-      outline:none;
-      font:inherit;
-    "
-  ></textarea>
-
-</div>
-
-
-<div class="total-box">
-
-  <span>Total</span>
-
-  <span id="cartTotal">
-    ${money(0)}
-  </span>
-
-</div>
-
-
-<label>
-  Metode Pembayaran
-</label>
+        <label>
+          Metode Pembayaran
+        </label>
 
 
         <select id="paymentMethod">
@@ -2476,19 +2426,6 @@ async function checkout() {
     paymentElement?.value ||
     "Tunai";
 
-  const customerNameElement =
-  $("#customerName");
-
-const saleNoteElement =
-  $("#saleNote");
-
-const customerName =
-  customerNameElement?.value
-    .trim() || "";
-
-const saleNote =
-  saleNoteElement?.value
-    .trim() || "";
 
   const invoice =
     "TRX-" +
@@ -2691,29 +2628,34 @@ const saleNote =
 
 
           transaction.set(
-  saleRef,
-  {
+            movementRef,
+            {
 
-    invoice,
+              productId:
+                item.productId,
 
-    date:
-      todayISO(),
+              type:
+                "SALE",
 
-    total,
+              qty:
+                -item.qty,
 
-    paymentMethod,
+              reference:
+                invoice,
 
-    customerName,
+              date:
+                todayISO(),
 
-    saleNote,
+              createdAt:
+                serverTimestamp()
 
-    items,
+            }
+          );
 
-    createdAt:
-      serverTimestamp()
+        }
 
-  }
-);
+      }
+    );
 
 
     cart = [];
