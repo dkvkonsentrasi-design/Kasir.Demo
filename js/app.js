@@ -4332,73 +4332,102 @@ function financeView() {
     sales.reduce(
       (total, sale) =>
         total +
-        normalizeNumber(sale.total),
+        normalizeNumber(
+          sale.total
+        ),
       0
     );
+
 
   const expense =
     expenses.reduce(
       (total, item) =>
         total +
-        normalizeNumber(item.amount),
+        normalizeNumber(
+          item.amount
+        ),
       0
     );
 
-  const content = $("#pageContent");
+
+  const content =
+    $("#pageContent");
 
   if (!content) {
     return;
   }
 
+
   const sortedExpenses =
-    [...expenses].sort(
-      (a, b) =>
-        String(b.date || "").localeCompare(
-          String(a.date || "")
-        )
-    );
+    expenses
+      .slice()
+      .sort(
+        (a, b) =>
+          String(b.date || "").localeCompare(
+            String(a.date || "")
+          )
+      );
+
 
   content.innerHTML = `
 
     <div class="grid cards">
 
       <div class="card">
+
         <div class="stat-label">
           Total Penjualan
         </div>
+
         <div class="stat-value">
           ${money(revenue)}
         </div>
+
       </div>
 
+
       <div class="card">
+
         <div class="stat-label">
           Total Pengeluaran
         </div>
+
         <div class="stat-value">
           ${money(expense)}
         </div>
+
       </div>
 
+
       <div class="card">
+
         <div class="stat-label">
           Selisih Kas
         </div>
+
         <div class="stat-value">
-          ${money(revenue - expense)}
+          ${money(
+            revenue - expense
+          )}
         </div>
+
       </div>
 
+
       <div class="card">
+
         <div class="stat-label">
           Transaksi
         </div>
+
         <div class="stat-value">
           ${sales.length}
         </div>
+
       </div>
 
     </div>
+
 
     <div
       class="panel"
@@ -4411,6 +4440,7 @@ function financeView() {
           Pengeluaran
         </h2>
 
+
         <button
           id="expenseBtn"
           class="primary-btn"
@@ -4421,19 +4451,29 @@ function financeView() {
 
       </div>
 
+
       <div class="table-wrap">
 
         <table>
 
           <thead>
+
             <tr>
+
               <th>Tanggal</th>
+
               <th>Kategori</th>
+
               <th>Keterangan</th>
+
               <th>Jumlah</th>
+
               <th>Aksi</th>
+
             </tr>
+
           </thead>
+
 
           <tbody>
 
@@ -4447,22 +4487,34 @@ function financeView() {
                         <tr>
 
                           <td>
-                            ${dateText(item.date)}
-                          </td>
-
-                          <td>
-                            ${escapeHTML(item.category)}
-                          </td>
-
-                          <td>
-                            ${escapeHTML(
-                              item.description || "-"
+                            ${dateText(
+                              item.date
                             )}
                           </td>
 
+
                           <td>
-                            ${money(item.amount)}
+                            ${escapeHTML(
+                              item.category ||
+                              "-"
+                            )}
                           </td>
+
+
+                          <td>
+                            ${escapeHTML(
+                              item.description ||
+                              "-"
+                            )}
+                          </td>
+
+
+                          <td>
+                            ${money(
+                              item.amount
+                            )}
+                          </td>
+
 
                           <td>
 
@@ -4470,22 +4522,44 @@ function financeView() {
                               style="
                                 display:flex;
                                 gap:8px;
-                                flex-wrap:wrap;
+                                align-items:center;
+                                white-space:nowrap;
                               "
                             >
 
                               <button
                                 type="button"
-                                class="secondary-btn"
-                                data-edit-expense="${escapeHTML(item.id)}"
+                                data-edit-expense="${escapeHTML(
+                                  item.id
+                                )}"
+                                style="
+                                  border:0;
+                                  border-radius:8px;
+                                  padding:7px 12px;
+                                  cursor:pointer;
+                                  background:#eef2ff;
+                                  color:#4338ca;
+                                  font-weight:600;
+                                "
                               >
                                 Edit
                               </button>
 
+
                               <button
                                 type="button"
-                                class="danger-btn"
-                                data-delete-expense="${escapeHTML(item.id)}"
+                                data-delete-expense="${escapeHTML(
+                                  item.id
+                                )}"
+                                style="
+                                  border:0;
+                                  border-radius:8px;
+                                  padding:7px 12px;
+                                  cursor:pointer;
+                                  background:#fee2e2;
+                                  color:#dc2626;
+                                  font-weight:600;
+                                "
                               >
                                 Hapus
                               </button>
@@ -4526,55 +4600,99 @@ function financeView() {
 
   `;
 
-  const expenseButton = $("#expenseBtn");
+
+  /* =====================================================
+     TOMBOL TAMBAH
+  ===================================================== */
+
+  const expenseButton =
+    $("#expenseBtn");
+
 
   if (expenseButton) {
-    expenseButton.onclick = () => expenseModal();
+
+    expenseButton.onclick =
+      () => {
+
+        expenseModal();
+
+      };
+
   }
 
+
+  /* =====================================================
+     TOMBOL EDIT
+  ===================================================== */
+
   content
-    .querySelectorAll("[data-edit-expense]")
-    .forEach(button => {
+    .querySelectorAll(
+      "[data-edit-expense]"
+    )
+    .forEach(
+      button => {
 
-      button.addEventListener(
-        "click",
-        () => {
+        button.addEventListener(
+          "click",
+          () => {
 
-          const expense =
-            expenses.find(
-              item =>
-                item.id ===
-                button.dataset.editExpense
+            const id =
+              button.dataset.editExpense;
+
+
+            const expense =
+              expenses.find(
+                item =>
+                  item.id === id
+              );
+
+
+            if (!expense) {
+
+              toast(
+                "Data pengeluaran tidak ditemukan."
+              );
+
+              return;
+
+            }
+
+
+            expenseModal(
+              expense
             );
 
-          if (!expense) {
-            toast(
-              "Data pengeluaran tidak ditemukan."
-            );
-            return;
           }
+        );
 
-          expenseModal(expense);
+      }
+    );
 
-        }
-      );
 
-    });
+  /* =====================================================
+     TOMBOL HAPUS
+  ===================================================== */
 
   content
-    .querySelectorAll("[data-delete-expense]")
-    .forEach(button => {
+    .querySelectorAll(
+      "[data-delete-expense]"
+    )
+    .forEach(
+      button => {
 
-      button.addEventListener(
-        "click",
-        () => {
-          removeExpense(
-            button.dataset.deleteExpense
-          );
-        }
-      );
+        button.addEventListener(
+          "click",
+          () => {
 
-    });
+            removeExpense(
+              button.dataset.deleteExpense
+            );
+
+          }
+        );
+
+      }
+    );
 
 }
 
@@ -4583,16 +4701,31 @@ function financeView() {
    EXPENSE MODAL
 ========================================================= */
 
-function expenseModal(expense = null) {
+function expenseModal(
+  expense = null
+) {
 
   const isEdit =
-    Boolean(expense && expense.id);
+    Boolean(
+      expense &&
+      expense.id
+    );
 
-  const modalRoot = $("#modalRoot");
+
+  const modalRoot =
+    $("#modalRoot");
+
 
   if (!modalRoot) {
+
+    toast(
+      "Modal tidak ditemukan."
+    );
+
     return;
+
   }
+
 
   modalRoot.innerHTML = `
 
@@ -4603,12 +4736,15 @@ function expenseModal(expense = null) {
         <div class="modal-head">
 
           <h2>
+
             ${
               isEdit
                 ? "Edit Pengeluaran"
                 : "Tambah Pengeluaran"
             }
+
           </h2>
+
 
           <button
             class="close"
@@ -4620,34 +4756,44 @@ function expenseModal(expense = null) {
 
         </div>
 
+
         <form id="expenseForm">
 
           <div class="form-grid">
 
+
             <div class="form-group">
 
-              <label>Tanggal</label>
+              <label>
+                Tanggal
+              </label>
+
 
               <input
                 name="date"
                 type="date"
+                required
                 value="${
                   escapeHTML(
                     expense?.date ||
                     todayISO()
                   )
                 }"
-                required
               >
 
             </div>
 
+
             <div class="form-group">
 
-              <label>Kategori</label>
+              <label>
+                Kategori
+              </label>
+
 
               <input
                 name="category"
+                type="text"
                 required
                 value="${
                   escapeHTML(
@@ -4655,52 +4801,64 @@ function expenseModal(expense = null) {
                     ""
                   )
                 }"
-                placeholder="Listrik / Bahan / Operasional"
+                placeholder="Contoh: minyak"
               >
 
             </div>
 
+
             <div class="form-group">
 
-              <label>Jumlah</label>
+              <label>
+                Jumlah
+              </label>
+
 
               <input
                 name="amount"
                 type="number"
-                min="0"
+                min="1"
                 step="1"
                 required
                 value="${
-                  isEdit
+                  expense
                     ? normalizeNumber(
                         expense.amount
                       )
                     : ""
                 }"
+                placeholder="18000"
               >
 
             </div>
 
+
             <div class="form-group">
 
-              <label>Keterangan</label>
+              <label>
+                Keterangan
+              </label>
+
 
               <input
                 name="description"
+                type="text"
                 value="${
                   escapeHTML(
                     expense?.description ||
                     ""
                   )
                 }"
-                placeholder="Keterangan pengeluaran"
+                placeholder="Contoh: 1 kg"
               >
 
             </div>
 
           </div>
 
+
           <div class="modal-actions">
+
 
             <button
               type="button"
@@ -4710,16 +4868,20 @@ function expenseModal(expense = null) {
               Batal
             </button>
 
+
             <button
               type="submit"
               class="primary-btn"
             >
+
               ${
                 isEdit
                   ? "Simpan Perubahan"
                   : "Simpan"
               }
+
             </button>
+
 
           </div>
 
@@ -4731,183 +4893,312 @@ function expenseModal(expense = null) {
 
   `;
 
-  const form = $("#expenseForm");
+
+  const form =
+    $("#expenseForm");
+
 
   if (!form) {
     return;
   }
 
-  form.onsubmit = async event => {
 
-    event.preventDefault();
+  form.addEventListener(
+    "submit",
+    async event => {
 
-    const data =
-      new FormData(event.target);
+      event.preventDefault();
 
-    const date =
-      String(
-        data.get("date") || ""
-      );
 
-    const category =
-      String(
-        data.get("category") || ""
-      ).trim();
-
-    const amount =
-      normalizeNumber(
-        data.get("amount")
-      );
-
-    const description =
-      String(
-        data.get("description") || ""
-      ).trim();
-
-    if (!date) {
-      toast(
-        "Tanggal pengeluaran wajib diisi."
-      );
-      return;
-    }
-
-    if (!category) {
-      toast(
-        "Kategori wajib diisi."
-      );
-      return;
-    }
-
-    if (amount <= 0) {
-      toast(
-        "Jumlah pengeluaran harus lebih dari 0."
-      );
-      return;
-    }
-
-    try {
-
-      if (isEdit) {
-
-        await updateDoc(
-          doc(
-            db,
-            "expenses",
-            expense.id
-          ),
-          {
-            date,
-            category,
-            amount,
-            description,
-            updatedAt:
-              serverTimestamp()
-          }
+      const formData =
+        new FormData(
+          form
         );
 
-      } else {
+
+      const date =
+        String(
+          formData.get(
+            "date"
+          ) || ""
+        );
+
+
+      const category =
+        String(
+          formData.get(
+            "category"
+          ) || ""
+        ).trim();
+
+
+      const amount =
+        normalizeNumber(
+          formData.get(
+            "amount"
+          )
+        );
+
+
+      const description =
+        String(
+          formData.get(
+            "description"
+          ) || ""
+        ).trim();
+
+
+      /* ===================================================
+         VALIDASI
+      =================================================== */
+
+      if (!date) {
+
+        toast(
+          "Tanggal wajib diisi."
+        );
+
+        return;
+
+      }
+
+
+      if (!category) {
+
+        toast(
+          "Kategori wajib diisi."
+        );
+
+        return;
+
+      }
+
+
+      if (amount <= 0) {
+
+        toast(
+          "Jumlah harus lebih dari 0."
+        );
+
+        return;
+
+      }
+
+
+      try {
+
+
+        /* =================================================
+           EDIT
+        ================================================= */
+
+        if (isEdit) {
+
+          await updateDoc(
+
+            doc(
+              db,
+              "expenses",
+              expense.id
+            ),
+
+            {
+
+              date:
+                date,
+
+              category:
+                category,
+
+              amount:
+                amount,
+
+              description:
+                description,
+
+              updatedAt:
+                serverTimestamp()
+
+            }
+
+          );
+
+
+          closeModal();
+
+
+          await loadAll();
+
+
+          financeView();
+
+
+          toast(
+            "Pengeluaran berhasil diperbarui."
+          );
+
+
+          return;
+
+        }
+
+
+        /* =================================================
+           TAMBAH
+        ================================================= */
 
         await addDoc(
+
           collection(
             db,
             "expenses"
           ),
+
           {
-            date,
-            category,
-            amount,
-            description,
+
+            date:
+              date,
+
+            category:
+              category,
+
+            amount:
+              amount,
+
+            description:
+              description,
+
             createdAt:
               serverTimestamp()
+
           }
+
+        );
+
+
+        closeModal();
+
+
+        await loadAll();
+
+
+        financeView();
+
+
+        toast(
+          "Pengeluaran berhasil ditambahkan."
+        );
+
+
+      } catch (error) {
+
+        console.error(
+          "Expense Save Error:",
+          error
+        );
+
+
+        toast(
+          error.message ||
+          "Gagal menyimpan pengeluaran."
         );
 
       }
 
-      closeModal();
-
-      await loadAll();
-
-      financeView();
-
-      toast(
-        isEdit
-          ? "Pengeluaran berhasil diperbarui."
-          : "Pengeluaran berhasil disimpan."
-      );
-
-    } catch (error) {
-
-      console.error(
-        "Expense Save Error:",
-        error
-      );
-
-      toast(
-        error.message ||
-        "Gagal menyimpan pengeluaran."
-      );
-
     }
-
-  };
+  );
 
 }
 
 
 /* =========================================================
-   DELETE EXPENSE
+   REMOVE EXPENSE
 ========================================================= */
 
-async function removeExpense(id) {
+async function removeExpense(
+  id
+) {
 
   const expense =
     expenses.find(
-      item => item.id === id
+      item =>
+        item.id === id
     );
 
+
   if (!expense) {
+
     toast(
       "Data pengeluaran tidak ditemukan."
     );
+
     return;
+
   }
 
+
+  const message =
+    "Hapus pengeluaran ini?\n\n" +
+
+    "Tanggal: " +
+    dateText(
+      expense.date
+    ) +
+
+    "\nKategori: " +
+    (
+      expense.category ||
+      "-"
+    ) +
+
+    "\nKeterangan: " +
+    (
+      expense.description ||
+      "-"
+    ) +
+
+    "\nJumlah: " +
+    money(
+      expense.amount
+    ) +
+
+    "\n\nData yang dihapus tidak dapat dikembalikan.";
+
+
   const confirmed =
-    window.confirm(
-      "Hapus pengeluaran ini?\\n\\n" +
-      "Tanggal: " +
-      dateText(expense.date) +
-      "\\nKategori: " +
-      (expense.category || "-") +
-      "\\nKeterangan: " +
-      (expense.description || "-") +
-      "\\nJumlah: " +
-      money(expense.amount) +
-      "\\n\\nData yang sudah dihapus tidak dapat dikembalikan."
+    confirm(
+      message
     );
+
 
   if (!confirmed) {
     return;
   }
 
+
   try {
 
     await deleteDoc(
+
       doc(
         db,
         "expenses",
         id
       )
+
     );
+
 
     await loadAll();
 
+
     financeView();
+
 
     toast(
       "Pengeluaran berhasil dihapus."
     );
+
 
   } catch (error) {
 
@@ -4915,6 +5206,7 @@ async function removeExpense(id) {
       "Delete Expense Error:",
       error
     );
+
 
     toast(
       error.message ||
@@ -4924,7 +5216,6 @@ async function removeExpense(id) {
   }
 
 }
-
 /* =========================================================
    REPORTS
 ========================================================= */
