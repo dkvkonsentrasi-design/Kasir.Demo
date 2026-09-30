@@ -47,7 +47,7 @@ function financeView() {
 
   content.innerHTML = `
 
-    <div class="grid grid-4">
+    <div class="grid cards">
 
       <div class="card">
 
@@ -134,11 +134,17 @@ function financeView() {
           <thead>
 
             <tr>
+
               <th>Tanggal</th>
+
               <th>Kategori</th>
+
               <th>Keterangan</th>
+
               <th>Jumlah</th>
+
               <th>Aksi</th>
+
             </tr>
 
           </thead>
@@ -161,11 +167,13 @@ function financeView() {
                             )}
                           </td>
 
+
                           <td>
                             ${escapeHTML(
                               item.category
                             )}
                           </td>
+
 
                           <td>
                             ${escapeHTML(
@@ -174,11 +182,13 @@ function financeView() {
                             )}
                           </td>
 
+
                           <td>
                             ${money(
                               item.amount
                             )}
                           </td>
+
 
                           <td>
 
@@ -186,16 +196,14 @@ function financeView() {
                               style="
                                 display:flex;
                                 gap:8px;
-                                flex-wrap:wrap
+                                flex-wrap:wrap;
                               "
                             >
 
                               <button
                                 type="button"
                                 class="secondary-btn"
-                                data-edit-expense="${escapeHTML(
-                                  item.id
-                                )}"
+                                data-edit-expense="${item.id}"
                               >
                                 Edit
                               </button>
@@ -204,9 +212,7 @@ function financeView() {
                               <button
                                 type="button"
                                 class="danger-btn"
-                                data-delete-expense="${escapeHTML(
-                                  item.id
-                                )}"
+                                data-delete-expense="${item.id}"
                               >
                                 Hapus
                               </button>
@@ -248,14 +254,24 @@ function financeView() {
   `;
 
 
+  /* =====================================================
+     TAMBAH PENGELUARAN
+  ===================================================== */
+
   const expenseButton =
     $("#expenseBtn");
 
   if (expenseButton) {
+
     expenseButton.onclick =
       () => expenseModal();
+
   }
 
+
+  /* =====================================================
+     EDIT PENGELUARAN
+  ===================================================== */
 
   content
     .querySelectorAll(
@@ -265,27 +281,38 @@ function financeView() {
 
       button.onclick = () => {
 
+        const id =
+          button.dataset.editExpense;
+
+
         const expense =
           expenses.find(
             item =>
-              item.id ===
-              button.dataset.editExpense
+              item.id === id
           );
 
 
         if (!expense) {
+
           return toast(
             "Data pengeluaran tidak ditemukan."
           );
+
         }
 
 
-        expenseModal(expense);
+        expenseModal(
+          expense
+        );
 
       };
 
     });
 
+
+  /* =====================================================
+     HAPUS PENGELUARAN
+  ===================================================== */
 
   content
     .querySelectorAll(
@@ -293,10 +320,13 @@ function financeView() {
     )
     .forEach(button => {
 
-      button.onclick = () =>
+      button.onclick = () => {
+
         removeExpense(
           button.dataset.deleteExpense
         );
+
+      };
 
     });
 
@@ -307,10 +337,15 @@ function financeView() {
    EXPENSE MODAL
 ========================================================= */
 
-function expenseModal(expense = null) {
+function expenseModal(
+  expense = null
+) {
 
   const isEdit =
-    Boolean(expense?.id);
+    Boolean(
+      expense &&
+      expense.id
+    );
 
 
   const modalRoot =
@@ -330,11 +365,13 @@ function expenseModal(expense = null) {
         <div class="modal-head">
 
           <h2>
+
             ${
               isEdit
                 ? "Edit Pengeluaran"
                 : "Tambah Pengeluaran"
             }
+
           </h2>
 
 
@@ -352,6 +389,7 @@ function expenseModal(expense = null) {
 
           <div class="form-grid">
 
+
             <div class="form-group">
 
               <label>
@@ -361,10 +399,10 @@ function expenseModal(expense = null) {
               <input
                 name="date"
                 type="date"
-                value="${escapeHTML(
+                value="${
                   expense?.date ||
                   todayISO()
-                )}"
+                }"
                 required
               >
 
@@ -380,10 +418,12 @@ function expenseModal(expense = null) {
               <input
                 name="category"
                 required
-                value="${escapeHTML(
-                  expense?.category ||
-                  ""
-                )}"
+                value="${
+                  escapeHTML(
+                    expense?.category ||
+                    ""
+                  )
+                }"
                 placeholder="Listrik / Bahan / Operasional"
               >
 
@@ -402,9 +442,13 @@ function expenseModal(expense = null) {
                 min="0"
                 step="1"
                 required
-                value="${normalizeNumber(
-                  expense?.amount
-                )}"
+                value="${
+                  expense
+                    ? normalizeNumber(
+                        expense.amount
+                      )
+                    : ""
+                }"
               >
 
             </div>
@@ -418,14 +462,17 @@ function expenseModal(expense = null) {
 
               <input
                 name="description"
-                value="${escapeHTML(
-                  expense?.description ||
-                  ""
-                )}"
+                value="${
+                  escapeHTML(
+                    expense?.description ||
+                    ""
+                  )
+                }"
                 placeholder="Keterangan pengeluaran"
               >
 
             </div>
+
 
           </div>
 
@@ -445,11 +492,13 @@ function expenseModal(expense = null) {
               type="submit"
               class="primary-btn"
             >
+
               ${
                 isEdit
                   ? "Simpan Perubahan"
                   : "Simpan"
               }
+
             </button>
 
           </div>
@@ -485,8 +534,16 @@ function expenseModal(expense = null) {
 
       const date =
         String(
-          data.get("date") || ""
+          data.get("date") ||
+          ""
         );
+
+
+      const category =
+        String(
+          data.get("category") ||
+          ""
+        ).trim();
 
 
       const amount =
@@ -495,17 +552,14 @@ function expenseModal(expense = null) {
         );
 
 
-      const category =
-        String(
-          data.get("category") || ""
-        ).trim();
-
-
       const description =
         String(
-          data.get("description") || ""
+          data.get("description") ||
+          ""
         ).trim();
 
+
+      /* VALIDASI */
 
       if (!date) {
 
@@ -534,51 +588,85 @@ function expenseModal(expense = null) {
       }
 
 
-      const payload = {
-
-        date,
-
-        category,
-
-        amount,
-
-        description,
-
-        updatedAt:
-          serverTimestamp()
-
-      };
-
-
       try {
+
+
+        /* =================================================
+           EDIT DATA
+        ================================================= */
 
         if (isEdit) {
 
           await updateDoc(
+
             doc(
               db,
               "expenses",
               expense.id
             ),
-            payload
-          );
 
-        } else {
-
-          await addDoc(
-            collection(
-              db,
-              "expenses"
-            ),
             {
-              ...payload,
 
-              createdAt:
+              date,
+
+              category,
+
+              amount,
+
+              description,
+
+              updatedAt:
                 serverTimestamp()
+
             }
+
           );
+
+
+          closeModal();
+
+          await loadAll();
+
+          financeView();
+
+
+          toast(
+            "Pengeluaran berhasil diperbarui."
+          );
+
+
+          return;
 
         }
+
+
+        /* =================================================
+           TAMBAH DATA BARU
+        ================================================= */
+
+        await addDoc(
+
+          collection(
+            db,
+            "expenses"
+          ),
+
+          {
+
+            date,
+
+            category,
+
+            amount,
+
+            description,
+
+            createdAt:
+              serverTimestamp()
+
+          }
+
+        );
 
 
         closeModal();
@@ -587,10 +675,9 @@ function expenseModal(expense = null) {
 
         financeView();
 
+
         toast(
-          isEdit
-            ? "Pengeluaran berhasil diperbarui."
-            : "Pengeluaran berhasil disimpan."
+          "Pengeluaran berhasil disimpan."
         );
 
 
@@ -601,10 +688,10 @@ function expenseModal(expense = null) {
           error
         );
 
+
         toast(
-          isEdit
-            ? "Gagal memperbarui pengeluaran."
-            : "Gagal menyimpan pengeluaran."
+          error.message ||
+          "Gagal menyimpan pengeluaran."
         );
 
       }
@@ -618,11 +705,14 @@ function expenseModal(expense = null) {
    DELETE EXPENSE
 ========================================================= */
 
-async function removeExpense(id) {
+async function removeExpense(
+  id
+) {
 
   const expense =
     expenses.find(
-      item => item.id === id
+      item =>
+        item.id === id
     );
 
 
@@ -637,12 +727,33 @@ async function removeExpense(id) {
 
   const confirmed =
     confirm(
+
       "Hapus pengeluaran ini?\n\n" +
-      `Tanggal: ${dateText(expense.date)}\n` +
-      `Kategori: ${expense.category || "-"}\n` +
-      `Keterangan: ${expense.description || "-"}\n` +
-      `Jumlah: ${money(expense.amount)}\n\n` +
-      "Data yang sudah dihapus tidak dapat dikembalikan."
+
+      "Tanggal: " +
+      dateText(
+        expense.date
+      ) +
+
+      "\nKategori: " +
+      (
+        expense.category ||
+        "-"
+      ) +
+
+      "\nKeterangan: " +
+      (
+        expense.description ||
+        "-"
+      ) +
+
+      "\nJumlah: " +
+      money(
+        expense.amount
+      ) +
+
+      "\n\nData yang sudah dihapus tidak dapat dikembalikan."
+
     );
 
 
@@ -654,17 +765,20 @@ async function removeExpense(id) {
   try {
 
     await deleteDoc(
+
       doc(
         db,
         "expenses",
         id
       )
+
     );
 
 
     await loadAll();
 
     financeView();
+
 
     toast(
       "Pengeluaran berhasil dihapus."
@@ -678,7 +792,9 @@ async function removeExpense(id) {
       error
     );
 
+
     toast(
+      error.message ||
       "Gagal menghapus pengeluaran."
     );
 
