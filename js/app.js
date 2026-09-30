@@ -533,36 +533,24 @@ function dashboardView() {
      7 TRANSAKSI TERAKHIR
   ===================================================== */
 
-  const latestSales =
-    [...sales]
-      .sort(
-        (a, b) => {
+const latestSales =
+  [...sales]
+    .sort(
+      (a, b) => {
 
-          const dateA =
-            a.createdAt?.seconds
-              ? Number(
-                  a.createdAt.seconds
-                )
-              : new Date(
-                  a.date || 0
-                ).getTime();
+        const dateA =
+          a.createdAt?.seconds
+            ? Number(a.createdAt.seconds)
+            : new Date(a.date || 0).getTime();
 
+        const dateB =
+          b.createdAt?.seconds
+            ? Number(b.createdAt.seconds)
+            : new Date(b.date || 0).getTime();
 
-          const dateB =
-            b.createdAt?.seconds
-              ? Number(
-                  b.createdAt.seconds
-                )
-              : new Date(
-                  b.date || 0
-                ).getTime();
-
-
-          return dateB - dateA;
-
-        }
-      )
-      .slice(0, 7);
+        return dateB - dateA;
+      }
+    );
 
 
   const content =
