@@ -529,26 +529,45 @@ function dashboardView() {
       );
 
 
+  /* =====================================================
+     7 TRANSAKSI TERAKHIR
+  ===================================================== */
+
   const latestSales =
     [...sales]
       .sort(
-        (a, b) =>
-          String(
-            b.createdAt?.seconds ||
-            b.date ||
-            ""
-          ).localeCompare(
-            String(
-              a.createdAt?.seconds ||
-              a.date ||
-              ""
-            )
-          )
+        (a, b) => {
+
+          const dateA =
+            a.createdAt?.seconds
+              ? Number(
+                  a.createdAt.seconds
+                )
+              : new Date(
+                  a.date || 0
+                ).getTime();
+
+
+          const dateB =
+            b.createdAt?.seconds
+              ? Number(
+                  b.createdAt.seconds
+                )
+              : new Date(
+                  b.date || 0
+                ).getTime();
+
+
+          return dateB - dateA;
+
+        }
       )
       .slice(0, 7);
 
 
-  const content = $("#pageContent");
+  const content =
+    $("#pageContent");
+
 
   if (!content) {
     return;
@@ -571,6 +590,7 @@ function dashboardView() {
           Dashboard
         </h2>
 
+
         <div class="muted">
           Ringkasan penjualan, stok dan keuangan
         </div>
@@ -581,6 +601,7 @@ function dashboardView() {
       <button
         id="resetDashboard"
         class="danger-btn"
+        type="button"
       >
         ↻ Reset Semua Data
       </button>
@@ -588,13 +609,19 @@ function dashboardView() {
     </div>
 
 
+    <!-- =================================================
+         RINGKASAN
+    ================================================== -->
+
     <div class="grid cards">
+
 
       <div class="card">
 
         <div class="stat-label">
           Penjualan Hari Ini
         </div>
+
 
         <div class="stat-value">
           ${money(revenue)}
@@ -609,6 +636,7 @@ function dashboardView() {
           Transaksi Hari Ini
         </div>
 
+
         <div class="stat-value">
           ${todaySales.length}
         </div>
@@ -621,6 +649,7 @@ function dashboardView() {
         <div class="stat-label">
           Pengeluaran Hari Ini
         </div>
+
 
         <div class="stat-value">
           ${money(expense)}
@@ -635,14 +664,20 @@ function dashboardView() {
           Penjualan Bulan Ini
         </div>
 
+
         <div class="stat-value">
           ${money(monthSales)}
         </div>
 
       </div>
 
+
     </div>
 
+
+    <!-- =================================================
+         TRANSAKSI + STOK
+    ================================================== -->
 
     <div
       class="grid"
@@ -652,14 +687,22 @@ function dashboardView() {
       "
     >
 
+
+      <!-- ===============================================
+           TRANSAKSI TERAKHIR
+      ================================================ -->
+
       <div class="panel">
+
 
         <h2 class="section-title">
           Penjualan 7 Transaksi Terakhir
         </h2>
 
+
         ${
           latestSales.length
+
             ? `
 
               <div class="table-wrap">
@@ -669,47 +712,194 @@ function dashboardView() {
                   <thead>
 
                     <tr>
-                      <th>Invoice</th>
-                      <th>Tanggal</th>
-                      <th>Total</th>
+
+                      <th>
+                        Invoice
+                      </th>
+
+
+                      <th>
+                        Tanggal
+                      </th>
+
+
+                      <th>
+                        Produk Terjual
+                      </th>
+
+
+                      <th>
+                        Jumlah
+                      </th>
+
+
+                      <th>
+                        Total
+                      </th>
+
                     </tr>
 
                   </thead>
 
+
                   <tbody>
+
 
                     ${
                       latestSales
                         .map(
-                          sale => `
+                          sale => {
 
-                            <tr>
+                            /*
+                             * Ambil item yang dijual
+                             */
 
-                              <td>
-                                ${escapeHTML(
-                                  sale.invoice ||
-                                  sale.id.slice(0, 8)
-                                )}
-                              </td>
+                            const items =
+                              Array.isArray(
+                                sale.items
+                              )
+                                ? sale.items
+                                : [];
 
-                              <td>
-                                ${dateText(
-                                  sale.date
-                                )}
-                              </td>
 
-                              <td>
-                                ${money(
-                                  sale.total
-                                )}
-                              </td>
+                            /*
+                             * Nama produk
+                             */
 
-                            </tr>
+                            const productNames =
+                              items.length
 
-                          `
+                                ? items
+                                    .map(
+                                      item =>
+                                        escapeHTML(
+                                          item.name ||
+                                          getProductName(
+                                            item.productId
+                                          ) ||
+                                          "-"
+                                        )
+                                    )
+                                    .join(
+                                      "<br>"
+                                    )
+
+                                : "-";
+
+
+                            /*
+                             * Jumlah produk
+                             */
+
+                            const quantities =
+                              items.length
+
+                                ? items
+                                    .map(
+                                      item => {
+
+                                        const qty =
+                                          normalizeNumber(
+                                            item.qty
+                                          );
+
+
+                                        const unit =
+                                          getProductUnit(
+                                            item.productId
+                                          );
+
+
+                                        return `
+                                          ${qty}
+                                          ${escapeHTML(
+                                            unit
+                                          )}
+                                        `;
+
+                                      }
+                                    )
+                                    .join(
+                                      "<br>"
+                                    )
+
+                                : "-";
+
+
+                            return `
+
+                              <tr>
+
+
+                                <!-- INVOICE -->
+
+                                <td>
+
+                                  ${escapeHTML(
+                                    sale.invoice ||
+                                    sale.id?.slice(
+                                      0,
+                                      8
+                                    ) ||
+                                    "-"
+                                  )}
+
+                                </td>
+
+
+                                <!-- TANGGAL -->
+
+                                <td>
+
+                                  ${dateText(
+                                    sale.date
+                                  )}
+
+                                </td>
+
+
+                                <!-- PRODUK -->
+
+                                <td>
+
+                                  ${
+                                    productNames
+                                  }
+
+                                </td>
+
+
+                                <!-- JUMLAH -->
+
+                                <td>
+
+                                  ${
+                                    quantities
+                                  }
+
+                                </td>
+
+
+                                <!-- TOTAL -->
+
+                                <td>
+
+                                  ${money(
+                                    sale.total
+                                  )}
+
+                                </td>
+
+
+                              </tr>
+
+                            `;
+
+                          }
                         )
                         .join("")
                     }
+
 
                   </tbody>
 
@@ -718,28 +908,42 @@ function dashboardView() {
               </div>
 
             `
+
             : `
 
               <div class="empty">
+
                 Belum ada transaksi.
+
               </div>
 
             `
         }
 
+
       </div>
 
 
+      <!-- ===============================================
+           STOK MENIPIS
+      ================================================ -->
+
       <div class="panel">
+
 
         <h2 class="section-title">
           ⚠️ Stok Menipis
         </h2>
 
+
         ${
           lowStock.length
+
             ? lowStock
-                .slice(0, 8)
+                .slice(
+                  0,
+                  8
+                )
                 .map(
                   product => `
 
@@ -749,14 +953,18 @@ function dashboardView() {
                         product.name
                       )}
 
-                      <span class="badge low">
+
+                      <span
+                        class="badge low"
+                      >
 
                         ${normalizeNumber(
                           product.stock
                         )}
 
                         ${escapeHTML(
-                          product.unit || "pcs"
+                          product.unit ||
+                          "pcs"
                         )}
 
                       </span>
@@ -766,28 +974,40 @@ function dashboardView() {
                   `
                 )
                 .join("")
+
             : `
 
               <div class="empty">
+
                 Stok aman.
+
               </div>
 
             `
         }
 
+
       </div>
+
 
     </div>
 
   `;
 
 
+  /* =====================================================
+     RESET BUTTON
+  ===================================================== */
+
   const resetButton =
     $("#resetDashboard");
 
+
   if (resetButton) {
+
     resetButton.onclick =
       resetDashboard;
+
   }
 
 }
