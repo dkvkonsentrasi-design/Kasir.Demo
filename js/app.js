@@ -1,13 +1,117 @@
 import { auth, db } from "./firebase.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js";
-import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, getDoc, setDoc, query, orderBy, limit, serverTimestamp, Timestamp, where } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
+import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, getDoc, setDoc, query, orderBy, limit, serverTimestamp, Timestamp, where, writeBatch } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
 
 const $ = s => document.querySelector(s);
 const money = n => new Intl.NumberFormat("id-ID",{style:"currency",currency:"IDR",maximumFractionDigits:0}).format(Number(n)||0);
 const dateText = d => d ? new Date(d).toLocaleDateString("id-ID",{day:"2-digit",month:"short",year:"numeric"}) : "-";
 const todayISO = () => new Date().toISOString().slice(0,10);
 
+
 let products = [], categories = [], suppliers = [], sales = [], expenses = [], cart = [];
+let resetInProgress = false;
+
+const DEMO_COLLECTIONS = [
+  "products", "categories", "suppliers", "sales", "expenses",
+  "purchases", "stock_movements"
+];
+
+const demoProducts = [
+  { id:"demo-popice-mangga", name:"Pop Ice Mangga", sku:"PI-MGG-001", categoryName:"Pop Ice", unit:"pcs", sellingPrice:5000, costPrice:2800, stock:48, minimumStock:10 },
+  { id:"demo-popice-coklat", name:"Pop Ice Coklat", sku:"PI-CKL-001", categoryName:"Pop Ice", unit:"pcs", sellingPrice:5000, costPrice:2800, stock:35, minimumStock:10 },
+  { id:"demo-popice-strawberry", name:"Pop Ice Strawberry", sku:"PI-STR-001", categoryName:"Pop Ice", unit:"pcs", sellingPrice:5000, costPrice:2800, stock:22, minimumStock:10 },
+  { id:"demo-es-batu", name:"Es Batu", sku:"ES-001", categoryName:"Bahan", unit:"bungkus", sellingPrice:3000, costPrice:1500, stock:8, minimumStock:12 },
+  { id:"demo-gula", name:"Gula", sku:"GL-001", categoryName:"Bahan", unit:"kg", sellingPrice:18000, costPrice:14000, stock:6, minimumStock:3 }
+];
+
+async function resetDemoData(){
+  if(resetInProgress) return;
+  if(!confirm("Reset semua data demo? Produk, stok, transaksi, pembelian, pengeluaran, dan laporan akan dikembalikan ke data awal. Akun login tidak dihapus.")) return;
+
+  resetInProgress = true;
+  try{
+    cart = [];
+    $("#modalRoot").innerHTML = "";
+    toast("Menyiapkan reset data demo...");
+
+    // Hapus seluruh data operasional, tetapi tidak menyentuh Firebase Authentication.
+    for(const collectionName of DEMO_COLLECTIONS){
+      const snap = await getDocs(collection(db, collectionName));
+      for(let i=0;i<snap.docs.length;i+=450){
+        const batch = writeBatch(db);
+        snap.docs.slice(i,i+450).forEach(item => batch.delete(item.ref));
+        await batch.commit();
+      }
+    }
+
+    const today = todayISO();
+    const previous = new Date();
+    previous.setDate(previous.getDate()-1);
+    const yesterday = previous.toISOString().slice(0,10);
+
+    const batch = writeBatch(db);
+
+    demoProducts.forEach(p => {
+      const {id, ...data} = p;
+      batch.set(doc(db,"products",id), {...data, createdAt:serverTimestamp(), updatedAt:serverTimestamp()});
+    });
+
+    batch.set(doc(db,"categories","demo-popice"), {name:"Pop Ice", description:"Minuman serbuk", createdAt:serverTimestamp()});
+    batch.set(doc(db,"categories","demo-bahan"), {name:"Bahan", description:"Bahan operasional", createdAt:serverTimestamp()});
+    batch.set(doc(db,"suppliers","demo-supplier-utama"), {name:"Supplier Utama", phone:"0800000000", address:"Data Demo", createdAt:serverTimestamp()});
+    batch.set(doc(db,"suppliers","demo-supplier-es"), {name:"Supplier Es", phone:"0811111111", address:"Data Demo", createdAt:serverTimestamp()});
+
+    batch.set(doc(db,"sales","demo-sale-001"), {
+      invoice:"TRX-DEMO-001", date:yesterday, total:15000, paymentMethod:"Tunai",
+      items:[
+        {productId:"demo-popice-mangga",name:"Pop Ice Mangga",qty:2,price:5000,costPrice:2800},
+        {productId:"demo-es-batu",name:"Es Batu",qty:1,price:5000,costPrice:1500}
+      ],
+      createdAt:serverTimestamp()
+    });
+    batch.set(doc(db,"sales","demo-sale-002"), {
+      invoice:"TRX-DEMO-002", date:today, total:15000, paymentMethod:"QRIS",
+      items:[
+        {productId:"demo-popice-coklat",name:"Pop Ice Coklat",qty:2,price:5000,costPrice:2800},
+        {productId:"demo-es-batu",name:"Es Batu",qty:1,price:5000,costPrice:1500}
+      ],
+      createdAt:serverTimestamp()
+    });
+
+    batch.set(doc(db,"expenses","demo-expense-001"), {
+      date:today, category:"Operasional", description:"Data pengeluaran demo", amount:5000, createdAt:serverTimestamp()
+    });
+
+    batch.set(doc(db,"purchases","demo-purchase-001"), {
+      supplierName:"Supplier Utama", date:yesterday, productId:"demo-popice-mangga",
+      productName:"Pop Ice Mangga", qty:20, cost:2800, total:56000, createdAt:serverTimestamp()
+    });
+
+    batch.set(doc(db,"stock_movements","demo-movement-001"), {
+      productId:"demo-popice-mangga", type:"PURCHASE", qty:20, reference:"Pembelian Demo",
+      date:yesterday, createdAt:serverTimestamp()
+    });
+    batch.set(doc(db,"stock_movements","demo-movement-002"), {
+      productId:"demo-popice-coklat", type:"SALE", qty:-2, reference:"TRX-DEMO-002",
+      date:today, createdAt:serverTimestamp()
+    });
+
+    await batch.commit();
+    await loadAll();
+    navigate(location.hash.replace("#","") || "dashboard");
+    toast("Data demo berhasil di-reset.");
+  }catch(err){
+    console.error("Reset demo gagal:", err);
+    toast("Reset gagal. Periksa koneksi dan izin Firestore.");
+  }finally{
+    resetInProgress = false;
+  }
+}
+
+window.resetDemoData = resetDemoData;
+
+const resetButton = () => `<button class="danger-btn reset-demo" type="button" onclick="window.resetDemoData()">↺ Reset Demo</button>`;
+
 
 const pageTitles = {dashboard:"Dashboard",pos:"Kasir / POS",products:"Produk",inventory:"Stok",purchases:"Pembelian",finance:"Keuangan",reports:"Laporan"};
 
@@ -53,6 +157,7 @@ function dashboardView(){
   const monthSales = sales.filter(s=>String(s.date||"").startsWith(todayISO().slice(0,7))).reduce((a,s)=>a+Number(s.total||0),0);
   const last = [...sales].sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,7);
   $("#pageContent").innerHTML=`
+    <div class="toolbar page-toolbar"><div><h2 class="section-title">Ringkasan Bisnis</h2><div class="muted">Data operasional dan indikator hari ini.</div></div>${resetButton()}</div>
     <div class="grid cards">
       <div class="card"><div class="stat-label">Penjualan Hari Ini</div><div class="stat-value">${money(revenue)}</div></div>
       <div class="card"><div class="stat-label">Transaksi Hari Ini</div><div class="stat-value">${sales.filter(s=>s.date===todayISO()).length}</div></div>
@@ -71,7 +176,7 @@ function dashboardView(){
 function productsView(){
   $("#pageContent").innerHTML=`
   <div class="panel">
-    <div class="toolbar"><div class="toolbar-left"><input id="productSearch" placeholder="Cari produk..."></div><button id="addProduct" class="primary-btn">+ Produk</button></div>
+    <div class="toolbar"><div class="toolbar-left"><input id="productSearch" placeholder="Cari produk..."></div><div class="toolbar-right"><button id="addProduct" class="primary-btn">+ Produk</button>${resetButton()}</div></div>
     <div class="table-wrap"><table><thead><tr><th>Produk</th><th>Kategori</th><th>Harga Jual</th><th>Modal</th><th>Stok</th><th>Aksi</th></tr></thead><tbody id="productRows"></tbody></table></div>
   </div>`;
   renderProducts(products);
@@ -99,27 +204,74 @@ function productModal(p={}){
 }
 
 function posView(){
-  $("#pageContent").innerHTML=`<div class="pos-grid"><div class="panel"><div class="toolbar"><input id="posSearch" placeholder="Cari produk..."></div><div id="posProducts" class="product-grid"></div></div><div class="panel"><h2 class="section-title">Keranjang</h2><div id="cartRows"></div><div class="total-box"><span>Total</span><span id="cartTotal">${money(0)}</span></div><label>Metode Pembayaran</label><select id="paymentMethod"><option>Tunai</option><option>QRIS</option><option>Transfer</option><option>E-Wallet</option></select><button id="checkout" class="primary-btn full" style="margin-top:15px">Bayar</button></div></div>`;
+  $("#pageContent").innerHTML=`<div class="toolbar page-toolbar"><div><h2 class="section-title">Kasir / POS</h2><div class="muted">Buat transaksi penjualan dan uji alur pembayaran.</div></div>${resetButton()}</div><div class="pos-grid"><div class="panel"><div class="toolbar"><input id="posSearch" placeholder="Cari produk..."></div><div id="posProducts" class="product-grid"></div></div><div class="panel"><h2 class="section-title">Keranjang</h2><div id="cartRows"></div><div class="total-box"><span>Total</span><span id="cartTotal">${money(0)}</span></div><label>Metode Pembayaran</label><select id="paymentMethod"><option>Tunai</option><option>QRIS</option><option>Transfer</option><option>E-Wallet</option></select><button id="checkout" class="primary-btn full" style="margin-top:15px">Bayar</button></div></div>`;
   renderPosProducts(products);renderCart();
   $("#posSearch").oninput=e=>renderPosProducts(products.filter(p=>p.name.toLowerCase().includes(e.target.value.toLowerCase())));
   $("#checkout").onclick=checkout;
 }
 function renderPosProducts(list){$("#posProducts").innerHTML=list.length?list.map(p=>`<div class="product-card"><h3>${p.name}</h3><div>${money(p.sellingPrice)}</div><small class="muted">Stok: ${p.stock||0}</small><button class="primary-btn" onclick='window.addCart("${p.id}")'>Tambah</button></div>`).join(""):`<div class="empty">Produk tidak ditemukan.</div>`}
 window.addCart=id=>{const p=products.find(x=>x.id===id);if(!p||Number(p.stock)<=0)return toast("Stok habis");const item=cart.find(x=>x.id===id);if(item){if(item.qty>=Number(p.stock))return toast("Melebihi stok");item.qty++}else cart.push({id:p.id,name:p.name,price:Number(p.sellingPrice),qty:1});renderCart()};
-window.changeQty=(id,delta)=>{const x=cart.find(i=>i.id===id);if(!x)return;x.qty+=delta;if(x.qty<=0)cart=cart.filter(i=>i.id!==id);const p=products.find(p=>p.id===id);if(x&&p&&x.qty>p.stock)x.qty=p.stock;renderCart()};
+window.changeQty=(id,delta)=>{const x=cart.find(i=>i.id===id);if(!x)return;x.qty+=delta;const p=products.find(p=>p.id===id);if(x.qty<=0){cart=cart.filter(i=>i.id!==id)}else if(p&&x.qty>Number(p.stock||0)){x.qty=Number(p.stock||0);if(x.qty<=0)cart=cart.filter(i=>i.id!==id);toast("Jumlah melebihi stok tersedia")}renderCart()};
 function renderCart(){const el=$("#cartRows");if(!el)return;el.innerHTML=cart.length?cart.map(x=>`<div class="cart-row"><div>${x.name}<br><span class="muted">${money(x.price)} × ${x.qty}</span></div><div class="qty"><button onclick='window.changeQty("${x.id}",-1)'>−</button><b>${x.qty}</b><button onclick='window.changeQty("${x.id}",1)'>+</button></div><b>${money(x.price*x.qty)}</b></div>`).join(""):`<div class="empty">Keranjang kosong.</div>`;const total=cart.reduce((a,x)=>a+x.price*x.qty,0);$("#cartTotal").textContent=money(total)}
 async function checkout(){
   if(!cart.length)return toast("Keranjang kosong");
+
   const total=cart.reduce((a,x)=>a+x.price*x.qty,0);
   const invoice="TRX-"+Date.now();
-  await addDoc(collection(db,"sales"),{invoice,date:todayISO(),total,paymentMethod:$("#paymentMethod").value,items:cart.map(x=>({productId:x.id,name:x.name,qty:x.qty,price:x.price})),createdAt:serverTimestamp()});
-  for(const x of cart){const p=products.find(p=>p.id===x.id);await updateDoc(doc(db,"products",x.id),{stock:Number(p.stock||0)-x.qty,updatedAt:serverTimestamp()});await addDoc(collection(db,"stock_movements"),{productId:x.id,type:"SALE",qty:-x.qty,reference:invoice,date:todayISO(),createdAt:serverTimestamp()});}
-  cart=[];await loadAll();posView();toast("Transaksi berhasil: "+invoice);
+
+  try{
+    const batch=writeBatch(db);
+    const saleRef=doc(collection(db,"sales"));
+    batch.set(saleRef,{
+      invoice,
+      date:todayISO(),
+      total,
+      paymentMethod:$("#paymentMethod").value,
+      items:cart.map(x=>{
+        const product=products.find(p=>p.id===x.id);
+        return {
+          productId:x.id,
+          name:x.name,
+          qty:x.qty,
+          price:x.price,
+          costPrice:Number(product?.costPrice||0)
+        };
+      }),
+      createdAt:serverTimestamp()
+    });
+
+    for(const x of cart){
+      const p=products.find(p=>p.id===x.id);
+      if(!p || Number(p.stock||0)<x.qty) throw new Error(`Stok ${x.name} tidak mencukupi.`);
+      batch.update(doc(db,"products",x.id),{
+        stock:Number(p.stock||0)-x.qty,
+        updatedAt:serverTimestamp()
+      });
+      const movementRef=doc(collection(db,"stock_movements"));
+      batch.set(movementRef,{
+        productId:x.id,
+        type:"SALE",
+        qty:-x.qty,
+        reference:invoice,
+        date:todayISO(),
+        createdAt:serverTimestamp()
+      });
+    }
+
+    await batch.commit();
+    cart=[];
+    await loadAll();
+    posView();
+    toast("Transaksi berhasil: "+invoice);
+  }catch(err){
+    console.error("Checkout gagal:",err);
+    toast(err.message||"Transaksi gagal. Tidak ada perubahan yang disimpan.");
+  }
 }
 
 function inventoryView(){
   const sorted=[...products].sort((a,b)=>Number(a.stock||0)-Number(b.stock||0));
-  $("#pageContent").innerHTML=`<div class="panel"><div class="toolbar"><h2 class="section-title">Persediaan</h2><button id="stockIn" class="primary-btn">+ Stok Masuk</button></div><div class="table-wrap"><table><thead><tr><th>Produk</th><th>Stok</th><th>Minimum</th><th>Status</th></tr></thead><tbody>${sorted.map(p=>`<tr><td>${p.name}</td><td><b>${p.stock||0}</b> ${p.unit||""}</td><td>${p.minimumStock??5}</td><td>${Number(p.stock||0)<=Number(p.minimumStock??5)?'<span class="badge low">Menipis</span>':'<span class="badge">Aman</span>'}</td></tr>`).join("")}</tbody></table></div></div>`;
+  $("#pageContent").innerHTML=`<div class="panel"><div class="toolbar"><h2 class="section-title">Persediaan</h2><div class="toolbar-right"><button id="stockIn" class="primary-btn">+ Stok Masuk</button>${resetButton()}</div></div><div class="table-wrap><table><thead><tr><th>Produk</th><th>Stok</th><th>Minimum</th><th>Status</th></tr></thead><tbody>${sorted.map(p=>`<tr><td>${p.name}</td><td><b>${p.stock||0}</b> ${p.unit||""}</td><td>${p.minimumStock??5}</td><td>${Number(p.stock||0)<=Number(p.minimumStock??5)?'<span class="badge low">Menipis</span>':'<span class="badge">Aman</span>'}</td></tr>`).join("")}</tbody></table></div></div>`;
   $("#stockIn").onclick=stockModal;
 }
 function stockModal(){
@@ -128,7 +280,7 @@ function stockModal(){
 }
 
 function purchasesView(){
-  $("#pageContent").innerHTML=`<div class="panel"><div class="toolbar"><h2 class="section-title">Pembelian / Supplier</h2><button id="purchaseBtn" class="primary-btn">+ Catat Pembelian</button></div><div class="table-wrap"><table><thead><tr><th>Supplier</th><th>Tanggal</th><th>Produk</th><th>Total</th></tr></thead><tbody id="purchaseRows"></tbody></table></div></div>`;
+  $("#pageContent").innerHTML=`<div class="panel"><div class="toolbar"><h2 class="section-title">Pembelian / Supplier</h2><div class="toolbar-right"><button id="purchaseBtn" class="primary-btn">+ Catat Pembelian</button>${resetButton()}</div></div><div class="table-wrap><table><thead><tr><th>Supplier</th><th>Tanggal</th><th>Produk</th><th>Total</th></tr></thead><tbody id="purchaseRows"></tbody></table></div></div>`;
   loadPurchases();$("#purchaseBtn").onclick=purchaseModal;
 }
 async function loadPurchases(){const snap=await getDocs(collection(db,"purchases"));const list=snap.docs.map(x=>({id:x.id,...x.data()}));$("#purchaseRows").innerHTML=list.length?list.map(p=>`<tr><td>${p.supplierName||"-"}</td><td>${dateText(p.date)}</td><td>${p.productName||"-"} × ${p.qty||0}</td><td>${money(p.total)}</td></tr>`).join(""):`<tr><td colspan="4" class="empty">Belum ada pembelian.</td></tr>`}
@@ -139,7 +291,7 @@ function purchaseModal(){
 
 function financeView(){
   const rev=sales.reduce((a,s)=>a+Number(s.total||0),0), exp=expenses.reduce((a,e)=>a+Number(e.amount||0),0);
-  $("#pageContent").innerHTML=`<div class="grid cards"><div class="card"><div class="stat-label">Total Penjualan</div><div class="stat-value">${money(rev)}</div></div><div class="card"><div class="stat-label">Total Pengeluaran</div><div class="stat-value">${money(exp)}</div></div><div class="card"><div class="stat-label">Selisih Kas</div><div class="stat-value">${money(rev-exp)}</div></div><div class="card"><div class="stat-label">Transaksi</div><div class="stat-value">${sales.length}</div></div></div><div class="panel" style="margin-top:18px"><div class="toolbar"><h2 class="section-title">Pengeluaran</h2><button id="expenseBtn" class="primary-btn">+ Pengeluaran</button></div><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Kategori</th><th>Keterangan</th><th>Jumlah</th></tr></thead><tbody>${expenses.map(e=>`<tr><td>${dateText(e.date)}</td><td>${e.category}</td><td>${e.description||"-"}</td><td>${money(e.amount)}</td></tr>`).join("")||`<tr><td colspan="4" class="empty">Belum ada pengeluaran.</td></tr>`}</tbody></table></div></div>`;
+  $("#pageContent").innerHTML=`<div class="grid cards"><div class="card"><div class="stat-label">Total Penjualan</div><div class="stat-value">${money(rev)}</div></div><div class="card"><div class="stat-label">Total Pengeluaran</div><div class="stat-value">${money(exp)}</div></div><div class="card"><div class="stat-label">Selisih Kas</div><div class="stat-value">${money(rev-exp)}</div></div><div class="card"><div class="stat-label">Transaksi</div><div class="stat-value">${sales.length}</div></div></div><div class="panel" style="margin-top:18px"><div class="toolbar"><h2 class="section-title">Pengeluaran</h2><div class="toolbar-right"><button id="expenseBtn" class="primary-btn">+ Pengeluaran</button>${resetButton()}</div></div><div class="table-wrap><table><thead><tr><th>Tanggal</th><th>Kategori</th><th>Keterangan</th><th>Jumlah</th></tr></thead><tbody>${expenses.map(e=>`<tr><td>${dateText(e.date)}</td><td>${e.category}</td><td>${e.description||"-"}</td><td>${money(e.amount)}</td></tr>`).join("")||`<tr><td colspan="4" class="empty">Belum ada pengeluaran.</td></tr>`}</tbody></table></div></div>`;
   $("#expenseBtn").onclick=expenseModal;
 }
 function expenseModal(){
@@ -149,7 +301,7 @@ function expenseModal(){
 
 function reportsView(){
   const rev=sales.reduce((a,s)=>a+Number(s.total||0),0), cost=sales.reduce((a,s)=>a+(s.items||[]).reduce((b,i)=>b+Number(i.costPrice||0)*Number(i.qty||0),0),0), exp=expenses.reduce((a,e)=>a+Number(e.amount||0),0);
-  $("#pageContent").innerHTML=`<div class="grid cards"><div class="card"><div class="stat-label">Penjualan</div><div class="stat-value">${money(rev)}</div></div><div class="card"><div class="stat-label">Estimasi HPP</div><div class="stat-value">${money(cost)}</div></div><div class="card"><div class="stat-label">Pengeluaran</div><div class="stat-value">${money(exp)}</div></div><div class="card"><div class="stat-label">Laba Kotor*</div><div class="stat-value">${money(rev-cost-exp)}</div></div></div><div class="panel" style="margin-top:18px"><p class="muted">*HPP pada transaksi lama belum otomatis tersimpan jika produk belum memiliki data costPrice pada saat transaksi. Versi lanjutan dapat menyimpan snapshot HPP setiap penjualan.</p><h2>Ringkasan Produk</h2><div class="table-wrap"><table><thead><tr><th>Produk</th><th>Harga Jual</th><th>Modal</th><th>Margin/Unit</th><th>Stok</th></tr></thead><tbody>${products.map(p=>`<tr><td>${p.name}</td><td>${money(p.sellingPrice)}</td><td>${money(p.costPrice)}</td><td>${money(Number(p.sellingPrice||0)-Number(p.costPrice||0))}</td><td>${p.stock||0}</td></tr>`).join("")}</tbody></table></div></div>`;
+  $("#pageContent").innerHTML=`<div class="grid cards"><div class="card"><div class="stat-label">Penjualan</div><div class="stat-value">${money(rev)}</div></div><div class="card"><div class="stat-label">Estimasi HPP</div><div class="stat-value">${money(cost)}</div></div><div class="card"><div class="stat-label">Pengeluaran</div><div class="stat-value">${money(exp)}</div></div><div class="card"><div class="stat-label">Laba Kotor*</div><div class="stat-value">${money(rev-cost-exp)}</div></div></div><div class="panel" style="margin-top:18px"><div class="toolbar page-toolbar"><h2 class="section-title">Ringkasan Laporan</h2>${resetButton()}</div><p class="muted">*HPP dihitung dari snapshot harga modal yang disimpan saat transaksi kasir, sehingga perubahan harga modal produk tidak mengubah transaksi lama.</p><h2>Ringkasan Produk</h2><div class="table-wrap"><table><thead><tr><th>Produk</th><th>Harga Jual</th><th>Modal</th><th>Margin/Unit</th><th>Stok</th></tr></thead><tbody>${products.map(p=>`<tr><td>${p.name}</td><td>${money(p.sellingPrice)}</td><td>${money(p.costPrice)}</td><td>${money(Number(p.sellingPrice||0)-Number(p.costPrice||0))}</td><td>${p.stock||0}</td></tr>`).join("")}</tbody></table></div></div>`;
 }
 
 window.closeModal=()=>$("#modalRoot").innerHTML="";
