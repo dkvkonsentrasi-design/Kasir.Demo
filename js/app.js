@@ -1,4 +1,5 @@
 import { auth, db } from "./firebase.js";
+
 import {
   onAuthStateChanged,
   signOut
@@ -11,14 +12,7 @@ import {
   deleteDoc,
   doc,
   getDocs,
-  getDoc,
-  setDoc,
-  query,
-  orderBy,
-  limit,
-  serverTimestamp,
-  Timestamp,
-  where
+  serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
 
 
@@ -35,6 +29,7 @@ const money = n =>
     maximumFractionDigits: 0
   }).format(Number(n) || 0);
 
+
 const dateText = d =>
   d
     ? new Date(d).toLocaleDateString("id-ID", {
@@ -43,6 +38,7 @@ const dateText = d =>
         year: "numeric"
       })
     : "-";
+
 
 const todayISO = () =>
   new Date().toISOString().slice(0, 10);
@@ -101,6 +97,7 @@ onAuthStateChanged(auth, async user => {
   navigate(
     location.hash.replace("#", "") || "dashboard"
   );
+
 });
 
 
@@ -140,30 +137,36 @@ async function loadAll() {
 
   ]);
 
+
   products = p.docs.map(x => ({
     id: x.id,
     ...x.data()
   }));
+
 
   categories = c.docs.map(x => ({
     id: x.id,
     ...x.data()
   }));
 
+
   suppliers = s.docs.map(x => ({
     id: x.id,
     ...x.data()
   }));
+
 
   sales = sa.docs.map(x => ({
     id: x.id,
     ...x.data()
   }));
 
+
   expenses = e.docs.map(x => ({
     id: x.id,
     ...x.data()
   }));
+
 }
 
 
@@ -182,6 +185,7 @@ function navigate(page) {
   $("#pageTitle").textContent =
     pageTitles[page];
 
+
   document
     .querySelectorAll(".nav-item")
     .forEach(b =>
@@ -190,6 +194,7 @@ function navigate(page) {
         b.dataset.page === page
       )
     );
+
 
   const views = {
     dashboard: dashboardView,
@@ -201,7 +206,9 @@ function navigate(page) {
     reports: reportsView
   };
 
+
   views[page]();
+
 }
 
 
@@ -218,6 +225,7 @@ document
     )
   );
 
+
 window.addEventListener(
   "hashchange",
   () =>
@@ -226,8 +234,10 @@ window.addEventListener(
     )
 );
 
+
 $("#menuBtn").onclick = () =>
   $(".sidebar").classList.toggle("open");
+
 
 $("#logoutBtn").onclick = () =>
   signOut(auth);
@@ -248,6 +258,7 @@ function dashboardView() {
         0
       );
 
+
   const expense =
     expenses
       .filter(e => e.date === todayISO())
@@ -257,12 +268,14 @@ function dashboardView() {
         0
       );
 
+
   const low =
     products.filter(
       p =>
         Number(p.stock || 0) <=
         Number(p.minimumStock || 5)
     );
+
 
   const monthSales =
     sales
@@ -277,6 +290,7 @@ function dashboardView() {
         0
       );
 
+
   const last =
     [...sales]
       .sort((a, b) =>
@@ -288,8 +302,6 @@ function dashboardView() {
 
 
   $("#pageContent").innerHTML = `
-
-    <!-- DASHBOARD HEADER -->
 
     <div
       class="toolbar"
@@ -322,8 +334,6 @@ function dashboardView() {
     </div>
 
 
-    <!-- STATISTIK -->
-
     <div class="grid cards">
 
       <div class="card">
@@ -346,11 +356,13 @@ function dashboardView() {
         </div>
 
         <div class="stat-value">
+
           ${
             sales.filter(
               s => s.date === todayISO()
             ).length
           }
+
         </div>
 
       </div>
@@ -383,8 +395,6 @@ function dashboardView() {
 
     </div>
 
-
-    <!-- TRANSAKSI DAN STOK -->
 
     <div
       class="grid"
@@ -522,15 +532,13 @@ function dashboardView() {
       </div>
 
     </div>
+
   `;
 
 
-  /* =======================================================
-     TOMBOL RESET
-  ======================================================= */
-
   $("#resetDashboard").onclick =
     resetDashboard;
+
 }
 
 
@@ -586,10 +594,6 @@ async function resetDashboard() {
 
   try {
 
-    /* =====================================================
-       COLLECTION YANG AKAN DIHAPUS
-    ===================================================== */
-
     const collectionsToReset = [
 
       "products",
@@ -611,10 +615,6 @@ async function resetDashboard() {
 
     let totalDeleted = 0;
 
-
-    /* =====================================================
-       HAPUS SEMUA DOKUMEN
-    ===================================================== */
 
     for (
       const collectionName
@@ -650,40 +650,19 @@ async function resetDashboard() {
     }
 
 
-    /* =====================================================
-       KOSONGKAN DATA MEMORY
-    ===================================================== */
-
     products = [];
-
     categories = [];
-
     suppliers = [];
-
     sales = [];
-
     expenses = [];
-
     cart = [];
 
-
-    /* =====================================================
-       LOAD ULANG FIRESTORE
-    ===================================================== */
 
     await loadAll();
 
 
-    /* =====================================================
-       TAMPILKAN DASHBOARD KOSONG
-    ===================================================== */
-
     dashboardView();
 
-
-    /* =====================================================
-       NOTIFIKASI
-    ===================================================== */
 
     toast(
       `Reset berhasil. ${totalDeleted} data telah dihapus.`
@@ -1654,21 +1633,35 @@ async function checkout() {
 
       items:
         cart.map(
-          x => ({
+          x => {
 
-            productId:
-              x.id,
+            const product =
+              products.find(
+                p => p.id === x.id
+              );
 
-            name:
-              x.name,
+            return {
 
-            qty:
-              x.qty,
+              productId:
+                x.id,
 
-            price:
-              x.price
+              name:
+                x.name,
 
-          })
+              qty:
+                x.qty,
+
+              price:
+                x.price,
+
+              costPrice:
+                Number(
+                  product?.costPrice || 0
+                )
+
+            };
+
+          }
         ),
 
       createdAt:
@@ -2152,7 +2145,19 @@ function purchasesView() {
               </th>
 
               <th>
+                Jumlah
+              </th>
+
+              <th>
+                Harga Modal
+              </th>
+
+              <th>
                 Total
+              </th>
+
+              <th>
+                Aksi
               </th>
 
             </tr>
@@ -2175,88 +2180,448 @@ function purchasesView() {
 
 
   $("#purchaseBtn").onclick =
-    purchaseModal;
-
-}
-
-
-async function loadPurchases() {
-
-  const snap =
-    await getDocs(
-      collection(
-        db,
-        "purchases"
-      )
-    );
-
-
-  const list =
-    snap.docs.map(
-      x => ({
-        id: x.id,
-        ...x.data()
-      })
-    );
-
-
-  $("#purchaseRows").innerHTML =
-
-    list.length
-
-      ? list
-          .map(
-            p => `
-
-              <tr>
-
-                <td>
-                  ${p.supplierName || "-"}
-                </td>
-
-                <td>
-                  ${dateText(p.date)}
-                </td>
-
-                <td>
-                  ${p.productName || "-"}
-                  ×
-                  ${p.qty || 0}
-                </td>
-
-                <td>
-                  ${money(p.total)}
-                </td>
-
-              </tr>
-
-            `
-          )
-          .join("")
-
-      : `
-
-        <tr>
-
-          <td
-            colspan="4"
-            class="empty"
-          >
-            Belum ada pembelian.
-          </td>
-
-        </tr>
-
-      `;
+    () => purchaseModal();
 
 }
 
 
 /* =========================================================
-   PURCHASE MODAL
+   LOAD PURCHASES
 ========================================================= */
 
-function purchaseModal() {
+async function loadPurchases() {
+
+  try {
+
+    const snap =
+      await getDocs(
+        collection(
+          db,
+          "purchases"
+        )
+      );
+
+
+    const list =
+      snap.docs.map(
+        x => ({
+          id: x.id,
+          ...x.data()
+        })
+      );
+
+
+    list.sort(
+      (a, b) =>
+        String(b.date || "").localeCompare(
+          String(a.date || "")
+        )
+    );
+
+
+    const rows =
+      $("#purchaseRows");
+
+
+    if (!rows) {
+      return;
+    }
+
+
+    rows.innerHTML =
+
+      list.length
+
+        ? list
+            .map(
+              p => `
+
+                <tr>
+
+                  <td>
+                    ${p.supplierName || "-"}
+                  </td>
+
+
+                  <td>
+                    ${dateText(p.date)}
+                  </td>
+
+
+                  <td>
+                    ${p.productName || "-"}
+                  </td>
+
+
+                  <td>
+                    ${p.qty || 0}
+                  </td>
+
+
+                  <td>
+                    ${money(p.cost)}
+                  </td>
+
+
+                  <td>
+                    ${money(p.total)}
+                  </td>
+
+
+                  <td>
+
+                    <button
+                      class="secondary-btn"
+                      onclick='window.editPurchase("${p.id}")'
+                    >
+                      Edit
+                    </button>
+
+
+                    <button
+                      class="danger-btn"
+                      onclick='window.removePurchase("${p.id}")'
+                    >
+                      Hapus
+                    </button>
+
+                  </td>
+
+                </tr>
+
+              `
+            )
+            .join("")
+
+        : `
+
+          <tr>
+
+            <td
+              colspan="7"
+              class="empty"
+            >
+              Belum ada pembelian.
+            </td>
+
+          </tr>
+
+        `;
+
+
+  } catch (error) {
+
+    console.error(
+      "Load Purchases Error:",
+      error
+    );
+
+    toast(
+      "Gagal memuat data pembelian."
+    );
+
+  }
+
+}
+
+
+/* =========================================================
+   EDIT PURCHASE
+========================================================= */
+
+window.editPurchase =
+  async id => {
+
+    try {
+
+      const snap =
+        await getDocs(
+          collection(
+            db,
+            "purchases"
+          )
+        );
+
+
+      const purchaseDoc =
+        snap.docs.find(
+          x => x.id === id
+        );
+
+
+      if (!purchaseDoc) {
+
+        toast(
+          "Data pembelian tidak ditemukan."
+        );
+
+        return;
+
+      }
+
+
+      const purchase = {
+
+        id:
+          purchaseDoc.id,
+
+        ...purchaseDoc.data()
+
+      };
+
+
+      purchaseModal(
+        purchase
+      );
+
+
+    } catch (error) {
+
+      console.error(
+        "Edit Purchase Error:",
+        error
+      );
+
+      toast(
+        "Gagal membuka pembelian."
+      );
+
+    }
+
+  };
+
+
+/* =========================================================
+   DELETE PURCHASE
+========================================================= */
+
+window.removePurchase =
+  async id => {
+
+    const confirmDelete =
+      confirm(
+
+        "⚠️ Hapus pembelian ini?\n\n" +
+
+        "Stok produk yang berasal dari pembelian ini juga akan dikurangi kembali.\n\n" +
+
+        "Data yang sudah dihapus tidak dapat dikembalikan."
+
+      );
+
+
+    if (!confirmDelete) {
+      return;
+    }
+
+
+    try {
+
+      const snap =
+        await getDocs(
+          collection(
+            db,
+            "purchases"
+          )
+        );
+
+
+      const purchaseDoc =
+        snap.docs.find(
+          x => x.id === id
+        );
+
+
+      if (!purchaseDoc) {
+
+        toast(
+          "Pembelian tidak ditemukan."
+        );
+
+        return;
+
+      }
+
+
+      const purchase = {
+
+        id:
+          purchaseDoc.id,
+
+        ...purchaseDoc.data()
+
+      };
+
+
+      const product =
+        products.find(
+          p =>
+            p.id === purchase.productId
+        );
+
+
+      if (!product) {
+
+        await deleteDoc(
+          doc(
+            db,
+            "purchases",
+            id
+          )
+        );
+
+
+        await loadAll();
+
+        purchasesView();
+
+        toast(
+          "Pembelian dihapus. Produk tidak ditemukan sehingga stok tidak diubah."
+        );
+
+        return;
+
+      }
+
+
+      const oldQty =
+        Number(
+          purchase.qty || 0
+        );
+
+
+      const currentStock =
+        Number(
+          product.stock || 0
+        );
+
+
+      const newStock =
+        currentStock - oldQty;
+
+
+      if (newStock < 0) {
+
+        const lanjut =
+          confirm(
+
+            "⚠️ Stok saat ini lebih kecil dari jumlah pembelian.\n\n" +
+
+            `Stok sekarang: ${currentStock}\n` +
+            `Jumlah pembelian: ${oldQty}\n\n` +
+
+            "Jika dihapus, stok akan menjadi 0.\n\n" +
+
+            "Tetap hapus?"
+
+          );
+
+
+        if (!lanjut) {
+          return;
+        }
+
+      }
+
+
+      await updateDoc(
+        doc(
+          db,
+          "products",
+          product.id
+        ),
+        {
+
+          stock:
+            Math.max(
+              0,
+              newStock
+            ),
+
+          updatedAt:
+            serverTimestamp()
+
+        }
+      );
+
+
+      await deleteDoc(
+        doc(
+          db,
+          "purchases",
+          id
+        )
+      );
+
+
+      await addDoc(
+        collection(
+          db,
+          "stock_movements"
+        ),
+        {
+
+          productId:
+            product.id,
+
+          purchaseId:
+            id,
+
+          type:
+            "PURCHASE_DELETE",
+
+          qty:
+            -oldQty,
+
+          reference:
+            "Hapus pembelian",
+
+          date:
+            todayISO(),
+
+          createdAt:
+            serverTimestamp()
+
+        }
+      );
+
+
+      await loadAll();
+
+      purchasesView();
+
+
+      toast(
+        "Pembelian berhasil dihapus dan stok dikembalikan."
+      );
+
+
+    } catch (error) {
+
+      console.error(
+        "Delete Purchase Error:",
+        error
+      );
+
+      toast(
+        "Gagal menghapus pembelian."
+      );
+
+    }
+
+  };
+
+
+/* =========================================================
+   PURCHASE MODAL
+   TAMBAH + EDIT
+========================================================= */
+
+function purchaseModal(p = {}) {
+
+  const isEdit =
+    Boolean(p.id);
+
 
   $("#modalRoot").innerHTML = `
 
@@ -2267,7 +2632,8 @@ function purchaseModal() {
         <div class="modal-head">
 
           <h2>
-            Catat Pembelian
+            ${isEdit ? "Edit" : "Catat"}
+            Pembelian
           </h2>
 
 
@@ -2295,6 +2661,7 @@ function purchaseModal() {
               <input
                 name="supplierName"
                 required
+                value="${p.supplierName || ""}"
                 placeholder="Nama supplier"
               >
 
@@ -2310,7 +2677,7 @@ function purchaseModal() {
               <input
                 name="date"
                 type="date"
-                value="${todayISO()}"
+                value="${p.date || todayISO()}"
                 required
               >
 
@@ -2324,17 +2691,25 @@ function purchaseModal() {
               </label>
 
 
-              <select name="productId">
+              <select
+                name="productId"
+                required
+              >
 
                 ${
                   products
                     .map(
-                      p => `
+                      product => `
 
                         <option
-                          value="${p.id}"
+                          value="${product.id}"
+                          ${
+                            p.productId === product.id
+                              ? "selected"
+                              : ""
+                          }
                         >
-                          ${p.name}
+                          ${product.name}
                         </option>
 
                       `
@@ -2358,6 +2733,7 @@ function purchaseModal() {
                 type="number"
                 min="1"
                 required
+                value="${p.qty || ""}"
               >
 
             </div>
@@ -2374,12 +2750,36 @@ function purchaseModal() {
                 type="number"
                 min="0"
                 required
+                value="${p.cost || ""}"
               >
 
             </div>
 
 
           </div>
+
+
+          ${
+            isEdit
+              ? `
+
+                <div
+                  class="muted"
+                  style="
+                    margin-top:10px;
+                    padding:10px;
+                    background:#f6f7fb;
+                    border-radius:8px
+                  "
+                >
+                  ℹ️ Saat pembelian diedit,
+                  stok akan otomatis disesuaikan
+                  dengan jumlah pembelian baru.
+                </div>
+
+              `
+              : ""
+          }
 
 
           <div class="modal-actions">
@@ -2396,7 +2796,11 @@ function purchaseModal() {
             <button
               class="primary-btn"
             >
-              Simpan
+              ${
+                isEdit
+                  ? "Simpan Perubahan"
+                  : "Simpan"
+              }
             </button>
 
           </div>
@@ -2416,128 +2820,543 @@ function purchaseModal() {
       e.preventDefault();
 
 
-      const f =
-        new FormData(e.target);
+      try {
+
+        const f =
+          new FormData(e.target);
 
 
-      const id =
-        f.get("productId");
+        const supplierName =
+          f.get("supplierName");
 
 
-      const qty =
-        Number(
-          f.get("qty")
-        );
+        const date =
+          f.get("date");
 
 
-      const cost =
-        Number(
-          f.get("cost")
-        );
+        const productId =
+          f.get("productId");
 
 
-      const p =
-        products.find(
-          x => x.id === id
-        );
+        const qty =
+          Number(
+            f.get("qty")
+          );
 
 
-      const total =
-        qty * cost;
+        const cost =
+          Number(
+            f.get("cost")
+          );
 
 
-      await addDoc(
-        collection(
-          db,
-          "purchases"
-        ),
-        {
+        if (
+          !supplierName ||
+          !date ||
+          !productId ||
+          qty <= 0 ||
+          cost < 0
+        ) {
 
-          supplierName:
-            f.get("supplierName"),
+          toast(
+            "Data pembelian belum lengkap."
+          );
 
-          date:
-            f.get("date"),
-
-          productId:
-            id,
-
-          productName:
-            p.name,
-
-          qty,
-
-          cost,
-
-          total,
-
-          createdAt:
-            serverTimestamp()
+          return;
 
         }
-      );
 
 
-      await updateDoc(
-        doc(
-          db,
-          "products",
-          id
-        ),
-        {
+        const newProduct =
+          products.find(
+            x =>
+              x.id === productId
+          );
 
-          stock:
+
+        if (!newProduct) {
+
+          toast(
+            "Produk tidak ditemukan."
+          );
+
+          return;
+
+        }
+
+
+        const total =
+          qty * cost;
+
+
+        /* =================================================
+           TAMBAH PEMBELIAN
+        ================================================= */
+
+        if (!isEdit) {
+
+          const purchaseRef =
+            await addDoc(
+              collection(
+                db,
+                "purchases"
+              ),
+              {
+
+                supplierName,
+
+                date,
+
+                productId,
+
+                productName:
+                  newProduct.name,
+
+                qty,
+
+                cost,
+
+                total,
+
+                /*
+                 * Menyimpan harga modal
+                 * sebelum pembelian.
+                 * Berguna jika nanti
+                 * pembelian dihapus.
+                 */
+                previousCostPrice:
+                  Number(
+                    newProduct.costPrice || 0
+                  ),
+
+                createdAt:
+                  serverTimestamp()
+
+              }
+            );
+
+
+          await updateDoc(
+            doc(
+              db,
+              "products",
+              productId
+            ),
+            {
+
+              stock:
+                Number(
+                  newProduct.stock || 0
+                ) + qty,
+
+              costPrice:
+                cost,
+
+              updatedAt:
+                serverTimestamp()
+
+            }
+          );
+
+
+          await addDoc(
+            collection(
+              db,
+              "stock_movements"
+            ),
+            {
+
+              productId,
+
+              purchaseId:
+                purchaseRef.id,
+
+              type:
+                "PURCHASE",
+
+              qty,
+
+              reference:
+                "Pembelian",
+
+              date,
+
+              createdAt:
+                serverTimestamp()
+
+            }
+          );
+
+
+          closeModal();
+
+          await loadAll();
+
+          purchasesView();
+
+
+          toast(
+            "Pembelian tersimpan"
+          );
+
+
+          return;
+
+        }
+
+
+        /* =================================================
+           EDIT PEMBELIAN
+        ================================================= */
+
+        const oldProduct =
+          products.find(
+            x =>
+              x.id === p.productId
+          );
+
+
+        const oldQty =
+          Number(
+            p.qty || 0
+          );
+
+
+        const oldCost =
+          Number(
+            p.cost || 0
+          );
+
+
+        if (!oldProduct) {
+
+          toast(
+            "Produk lama dari pembelian tidak ditemukan."
+          );
+
+          return;
+
+        }
+
+
+        /* ================================================
+           KONFIRMASI EDIT
+        ================================================ */
+
+        const confirmEdit =
+          confirm(
+
+            "Simpan perubahan pembelian?\n\n" +
+
+            `Produk lama: ${oldProduct.name}\n` +
+            `Jumlah lama: ${oldQty}\n\n` +
+
+            `Produk baru: ${newProduct.name}\n` +
+            `Jumlah baru: ${qty}\n\n` +
+
+            "Stok akan otomatis disesuaikan."
+
+          );
+
+
+        if (!confirmEdit) {
+          return;
+        }
+
+
+        /* ================================================
+           PRODUK SAMA
+        ================================================ */
+
+        if (
+          oldProduct.id ===
+          newProduct.id
+        ) {
+
+          const stockNow =
             Number(
-              p.stock || 0
-            ) + qty,
+              oldProduct.stock || 0
+            );
 
-          costPrice:
+
+          const stockAfter =
+            stockNow -
+            oldQty +
+            qty;
+
+
+          if (stockAfter < 0) {
+
+            toast(
+              "Stok tidak cukup untuk melakukan perubahan."
+            );
+
+            return;
+
+          }
+
+
+          await updateDoc(
+            doc(
+              db,
+              "products",
+              oldProduct.id
+            ),
+            {
+
+              stock:
+                stockAfter,
+
+              costPrice:
+                cost,
+
+              updatedAt:
+                serverTimestamp()
+
+            }
+          );
+
+
+          await addDoc(
+            collection(
+              db,
+              "stock_movements"
+            ),
+            {
+
+              productId:
+                oldProduct.id,
+
+              purchaseId:
+                p.id,
+
+              type:
+                "PURCHASE_EDIT",
+
+              qty:
+                qty - oldQty,
+
+              reference:
+                "Edit pembelian",
+
+              date,
+
+              createdAt:
+                serverTimestamp()
+
+            }
+          );
+
+        }
+
+
+        /* ================================================
+           PRODUK BERUBAH
+        ================================================ */
+
+        else {
+
+          const oldStock =
+            Number(
+              oldProduct.stock || 0
+            );
+
+
+          const newStock =
+            Number(
+              newProduct.stock || 0
+            );
+
+
+          const oldStockAfter =
+            oldStock -
+            oldQty;
+
+
+          if (
+            oldStockAfter < 0
+          ) {
+
+            toast(
+
+              `Stok ${oldProduct.name} tidak cukup untuk memindahkan pembelian.`
+
+            );
+
+            return;
+
+          }
+
+
+          await updateDoc(
+            doc(
+              db,
+              "products",
+              oldProduct.id
+            ),
+            {
+
+              stock:
+                oldStockAfter,
+
+              updatedAt:
+                serverTimestamp()
+
+            }
+          );
+
+
+          await updateDoc(
+            doc(
+              db,
+              "products",
+              newProduct.id
+            ),
+            {
+
+              stock:
+                newStock + qty,
+
+              costPrice:
+                cost,
+
+              updatedAt:
+                serverTimestamp()
+
+            }
+          );
+
+
+          /* =============================================
+             RIWAYAT STOK PRODUK LAMA
+          ============================================= */
+
+          await addDoc(
+            collection(
+              db,
+              "stock_movements"
+            ),
+            {
+
+              productId:
+                oldProduct.id,
+
+              purchaseId:
+                p.id,
+
+              type:
+                "PURCHASE_EDIT_REMOVE",
+
+              qty:
+                -oldQty,
+
+              reference:
+                "Edit pembelian - produk lama",
+
+              date,
+
+              createdAt:
+                serverTimestamp()
+
+            }
+          );
+
+
+          /* =============================================
+             RIWAYAT STOK PRODUK BARU
+          ============================================= */
+
+          await addDoc(
+            collection(
+              db,
+              "stock_movements"
+            ),
+            {
+
+              productId:
+                newProduct.id,
+
+              purchaseId:
+                p.id,
+
+              type:
+                "PURCHASE_EDIT_ADD",
+
+              qty,
+
+              reference:
+                "Edit pembelian - produk baru",
+
+              date,
+
+              createdAt:
+                serverTimestamp()
+
+            }
+          );
+
+        }
+
+
+        /* ================================================
+           UPDATE DATA PEMBELIAN
+        ================================================ */
+
+        await updateDoc(
+          doc(
+            db,
+            "purchases",
+            p.id
+          ),
+          {
+
+            supplierName,
+
+            date,
+
+            productId,
+
+            productName:
+              newProduct.name,
+
+            qty,
+
             cost,
 
-          updatedAt:
-            serverTimestamp()
+            total,
 
-        }
-      );
+            updatedAt:
+              serverTimestamp()
 
-
-      await addDoc(
-        collection(
-          db,
-          "stock_movements"
-        ),
-        {
-
-          productId:
-            id,
-
-          type:
-            "PURCHASE",
-
-          qty,
-
-          reference:
-            "Pembelian",
-
-          date:
-            f.get("date"),
-
-          createdAt:
-            serverTimestamp()
-
-        }
-      );
+          }
+        );
 
 
-      closeModal();
+        closeModal();
 
-      await loadAll();
+        await loadAll();
 
-      purchasesView();
+        purchasesView();
 
-      toast(
-        "Pembelian tersimpan"
-      );
+
+        toast(
+          "Pembelian berhasil diperbarui."
+        );
+
+
+      } catch (error) {
+
+        console.error(
+          "Purchase Save Error:",
+          error
+        );
+
+
+        toast(
+          "Gagal menyimpan pembelian."
+        );
+
+      }
 
     };
 
@@ -3030,13 +3849,8 @@ function reportsView() {
 
       <p class="muted">
 
-        *HPP pada transaksi lama belum
-        otomatis tersimpan jika produk belum
-        memiliki data costPrice pada saat
-        transaksi.
-
-        Versi lanjutan dapat menyimpan
-        snapshot HPP setiap penjualan.
+        *HPP dihitung dari costPrice
+        yang disimpan pada item transaksi.
 
       </p>
 
@@ -3158,8 +3972,10 @@ function toast(msg) {
   const t =
     document.createElement("div");
 
+
   t.className =
     "toast";
+
 
   t.textContent =
     msg;
